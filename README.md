@@ -8,10 +8,12 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 **Step 1: Merge Models (Mergekit)**
 *Configure your model merge using YAML and optionally upload to Hugging Face.*
+
 <img src="Capture.PNG" alt="FusionQuant Merge Interface" width="700"/>
 
 **Step 2: Convert to GGUF & Quantize (Llama.cpp)**
 *Convert merged or standalone models to GGUF, with various quantization options.*
+
 <img src="Capture2.PNG" alt="FusionQuant GGUF Interface" width="700"/>
 
 ---
