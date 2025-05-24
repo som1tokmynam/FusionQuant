@@ -20,27 +20,27 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ### Effortless Model Merging (Powered by Mergekit)
 * **Combine Model Capabilities**: Merge base models with other fine-tuned models to create new, specialized versions.
-* **Flexible YAML Configuration**: Define complex merge strategies with ease using the intuitive Mergekit YAML editor. [cite: 1]
+* **Flexible YAML Configuration**: Define complex merge strategies with ease using the intuitive Mergekit YAML editor.
 * **Quick Start Examples**: Jump right in with pre-defined merge examples like "Delta Linear" (Note: The screenshot shows "Example: Delta, Linear..." as a placeholder in the YAML, and the `load_merge_examples` function in `combined_app.py` loads various examples including a default linear merge [cite: 1]) to get you started.
-* **Hugging Face Integration**: Optionally upload your freshly merged models directly to your Hugging Face Hub repository. [cite: 1]
+* **Hugging Face Integration**: Optionally upload your freshly merged models directly to your Hugging Face Hub repository.
 
 ### Advanced GGUF Conversion & Quantization (Powered by Llama.cpp)
 * **Optimize for Local Use**: Convert your models (merged or standalone) to the popular GGUF format, perfect for running LLMs efficiently on consumer hardware with tools like Llama.cpp.
-* **Wide Range of Quantization Options**: Choose from various standard quantization levels (e.g., Q2_K, Q3_K_M, Q4_K_M, Q5_K_M, Q8_0) to balance model size, speed, and performance according to your needs. [cite: 1]
-* **Importance Matrix Support**: Advanced users can leverage an importance matrix for more nuanced and potentially higher-quality quantization. [cite: 1]
-* **Large Model Handling**: Option to split very large GGUF models into manageable shards. [cite: 1]
-* **Hugging Face Upload**: Seamlessly upload your GGUF models to Hugging Face, with options for public or private repositories. [cite: 1]
+* **Wide Range of Quantization Options**: Choose from various standard quantization levels (e.g., Q2_K, Q3_K_M, Q4_K_M, Q5_K_M, Q8_0) to balance model size, speed, and performance according to your needs.
+* **Importance Matrix Support**: Advanced users can leverage an importance matrix for more nuanced and potentially higher-quality quantization.
+* **Large Model Handling**: Option to split very large GGUF models into manageable shards.
+* **Hugging Face Upload**: Seamlessly upload your GGUF models to Hugging Face, with options for public or private repositories.
 
 ---
 
 ## Key Advantages
 
-* **Two-Step Pipeline**: A guided process takes you from merging models directly through to GGUF conversion. [cite: 1]
+* **Two-Step Pipeline**: A guided process takes you from merging models directly through to GGUF conversion.
 * **Standalone Operation**: Use Step 1 (Merge) or Step 2 (GGUF Conversion) independently.
-    * Want to just convert an existing model from Hugging Face or your local drive to GGUF? No problem! [cite: 1]
-    * Only need to merge models? That's covered too. [cite: 1]
-* **User-Friendly Interface**: Built with Gradio for an intuitive web UI. [cite: 1]
-* **Real-time Logging**: Monitor the progress of your merge and conversion tasks with live log outputs. [cite: 1]
+    * Want to just convert an existing model from Hugging Face or your local drive to GGUF? No problem!
+    * Only need to merge models? That's covered too.
+* **User-Friendly Interface**: Built with Gradio for an intuitive web UI.
+* **Real-time Logging**: Monitor the progress of your merge and conversion tasks with live log outputs.
 
 ---
 
@@ -49,7 +49,8 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 You can run FusionQuant using Docker:
 
 ```bash
-docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:1.1```
+docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:1.1
+```
 
 ## Explanation of Parameters:
 
