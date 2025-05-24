@@ -49,9 +49,9 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 You can run FusionQuant using Docker:
 
 ```bash
-docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:1.1
+docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:1.1```
 
-Explanation of Parameters:
+## Explanation of Parameters:
 
 --user=root: (Temporary, see "To Implement/Fix")
 --name fusionquant: Assigns a name to your Docker container.
@@ -77,7 +77,7 @@ Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess)
 
 ---
 
-### Acknowledgements and Core Technologies
+Acknowledgements and Core Technologies
 FusionQuant stands on the shoulders of giants. This application integrates and provides an interface for the following outstanding open-source projects:
 
 Mergekit: Used for all model merging functionalities.
