@@ -54,41 +54,44 @@ docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outp
 
 ## Explanation of Parameters:
 
---user=root: (Temporary, see "To Implement/Fix")
---name fusionquant: Assigns a name to your Docker container.
--v /YOURVOLUMEPATH:/home/user/app/outputs: Crucial! Mount a volume from your host machine (/YOURVOLUMEPATH) to /home/user/app/outputs in the container. This is where your merged models and GGUF files will be saved, ensuring they persist after the container stops. Replace /YOURVOLUMEPATH with an actual path on your system, e.g., $(pwd)/fusionquant_outputs.
--it: Runs the container in interactive mode with a TTY.
--p 7860:7860: Maps port 7860 on your host to port 7860 in the container (Gradio UI).
--e HF_TOKEN="YOURTOKEN(OPTIONAL)": Optionally, pass your Hugging Face token as an environment variable for uploads. This is recommended for uploading to private repos or your own namespace.
---platform=linux/amd64: Specifies the platform, useful for running on machines with different architectures (e.g., ARM-based Macs).
-som1tokmynam/fusionquant:1.1: The Docker image to run.
-Once running, open your web browser and navigate to http://localhost:7860.
+* *--user=root: (Temporary, see "To Implement/Fix")
+* *--name fusionquant: Assigns a name to your Docker container.
+* *-v /YOURVOLUMEPATH:/home/user/app/outputs: Crucial! Mount a volume from your host machine (/YOURVOLUMEPATH) to /home/user/app/outputs in the container. This is where your merged models and GGUF files will be saved, ensuring they persist after the container stops. Replace /YOURVOLUMEPATH with an actual path on your system, e.g., $(pwd)/fusionquant_outputs.
+* *-it: Runs the container in interactive mode with a TTY.
+* *-p 7860:7860: Maps port 7860 on your host to port 7860 in the container (Gradio UI).
+* *-e HF_TOKEN="YOURTOKEN(OPTIONAL)": Optionally, pass your Hugging Face token as an environment variable for uploads. This is recommended for uploading to private repos or your own namespace.
+* *--platform=linux/amd64: Specifies the platform, useful for running on machines with different architectures (e.g., ARM-based Macs).
+* *som1tokmynam/fusionquant:1.1: The Docker image to run.
+* *Once running, open your web browser and navigate to http://localhost:7860.
 
 ---
 
 ## To Implement / Fix
 
-Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.
-Gradio Share: Add --share option to combined_app.py for easy public sharing of the Gradio interface when needed.
-CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.
-Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
-Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
-Technologies Used
-Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess) 
+* *Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.
+* *Gradio Share: Add --share option to combined_app.py for easy public sharing of the Gradio interface when needed.
+* *CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.
+* *Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
+* *Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
+* *Technologies Used
+* *Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess) 
 
 ---
 
-Acknowledgements and Core Technologies
+## Acknowledgements and Core Technologies
+
 FusionQuant stands on the shoulders of giants. This application integrates and provides an interface for the following outstanding open-source projects:
 
-Mergekit: Used for all model merging functionalities.
-GitHub: https://github.com/arcee-ai/mergekit
-Llama.cpp: Used for GGUF conversion and quantization.
-GitHub: https://github.com/ggml-org/llama.cpp
+**Mergekit: Used for all model merging functionalities.
+**GitHub: https://github.com/arcee-ai/mergekit
+**Llama.cpp: Used for GGUF conversion and quantization.
+**GitHub: https://github.com/ggml-org/llama.cpp
+
 We are incredibly grateful to the developers and maintainers of these projects for their significant contributions to the open-source AI community. Please refer to their respective repositories for more detailed information, licensing, and to support their work.
 
-Technologies Used
-Backend: Python, Gradio
-Core Engines: Mergekit, Llama.cpp (via subprocess)
-Frontend: Gradio
-Containerization: Docker
+## Technologies Used
+
+**Backend: Python, Gradio
+**Core Engines: Mergekit, Llama.cpp (via subprocess)
+**Frontend: Gradio
+**Containerization: Docker
