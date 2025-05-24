@@ -1,0 +1,20 @@
+# --- Mergekit Example: task_arithmetic ---
+# Method: Applies learned "task vectors" to a base model.
+
+base_model: "org/target-foundation-model"
+models:
+  - model: "org/fine-tuned-on-TaskA"
+    parameters:
+      weight: 1.0                    # Contribution of this model (e.g., 100%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/fine-tuned-on-TaskB"
+    parameters:
+      weight: -0.5                   # Example: "subtracting" a task
+model_name: MyTaskArithmeticMerge-v1 # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                  # output size float32, float16, bfloat16
+merge_method: task_arithmetic
+parameters:
+  lambda: 1.0                        # Added: Scaling factor for summed task vectors (default is 1.0)
+tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                       # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                  # License type

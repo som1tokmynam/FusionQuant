@@ -1,0 +1,12 @@
+# --- Mergekit Example: arcee_fusion ---
+
+base_model: "path/to/your/fine_tune_on_coding"   # Designate one as base_model
+models:
+  - model: "path/to/your/fine_tune_on_reasoning"
+model_name: MyFusionMerge-v1                     # Name of your merge
+dtype: float32                                   # Input size float32, float16, bfloat16
+out_dtype: bfloat16                              # output size float32, float16, bfloat16
+merge_method: arcee_fusion
+tokenizer_source: "org/model-name-A"             # choose which tokenizer
+chat_template:                                   # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                              # license type

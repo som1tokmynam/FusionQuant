@@ -1,0 +1,28 @@
+# --- Mergekit Example: della_linear ---
+# Method: Implements the DELLA concept (Deep Ensembling with Layer-wise Linear Averaging).
+#         This typically involves a sophisticated layer-wise linear combination of models.
+
+base_model: "org/model-name-Foundation"  # The foundational model
+models:
+  - model: "org/fine-tuned-model-A"
+    parameters:
+      weight: 0.5                 # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.95               # Sparsity/pruning factor for this model's contribution.
+      epsilon: 0.018              # Single epsilon for the pruning
+  - model: "org/fine-tuned-model-B"
+    parameters:
+      weight: 0.5                 # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.95               # Sparsity/pruning factor for this model's contribution.
+      epsilon: 0.018              # Single epsilon for the pruning
+model_name: MyDellaLinearMerge-v1 # Name of your merge
+dtype: float32                    # Input size float32, float16, bfloat16
+out_dtype: bfloat16               # output size float32, float16, bfloat16
+merge_method: della_linear
+parameters:
+  normalize: false                # If true (default), weights are normalized to sum to 1.
+                                  # If false, absolute weights are used.
+  lambda: 1.20                    # Single lambda for scaling the final merged deltas
+
+tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                    # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0               # License type

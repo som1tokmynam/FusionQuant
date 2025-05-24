@@ -1,0 +1,17 @@
+# --- Mergekit Example: passthrough ---
+# Method: Directly passes through specified layers from different models. (Uses 'slices')
+
+slices:
+  - sources:
+      - model: "org/model-name-A"
+        layer_range: [0, 16]
+  - sources:
+      - model: "org/model-name-B"
+        layer_range: [16, 32]
+model_name: MyFrankenMerge-v1        # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                    # output size float32, float16, bfloat16
+merge_method: passthrough
+tokenizer_source: "org/model-name-A"   # Choose tokenizer carefully
+chat_template:                         # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                    # License type

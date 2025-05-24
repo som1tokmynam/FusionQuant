@@ -1,0 +1,33 @@
+# mergekit_config_llama_70b_to_102L.yaml
+
+slices:
+  # --- Slice 1: The original 80 layers of Llama 2 70B ---
+  # These will form layers 0 through 79 of the new model.
+  - sources:
+      - model: "meta-llama/Llama-2-70b-hf"
+        layer_range: [0, 80]
+
+  # --- Slice 2: Add 22 new layers by duplicating existing ones ---
+  # These will form layers 80 through 101 of the new model.
+  # We are copying layers 58-79 (22 layers) from the original model.
+  - sources:
+      - model: "meta-llama/Llama-2-70b-hf"
+        layer_range: [58, 80]  # These are layers from `base_model_name`
+        parameters:
+          scale:
+            # Zero out the output projection weights in the attention blocks
+            # of these NEWLY ADDED layers (which will be layers 80-101).
+            - filter: model.layers.*.self_attn.o_proj.weight
+              value: 0
+            # Zero out the down projection weights in the MLP blocks
+            # of these NEWLY ADDED layers.
+            - filter: model.layers.*.mlp.down_proj.weight
+              value: 0
+            - value: 1
+model_name: "my-experimental-Llama-102L" # Name of your merge
+dtype: float32                         # Input size float32, float16, bfloat16
+out_dtype: bfloat16                      # output size float32, float16, bfloat16
+merge_method: passthrough
+tokenizer_source: "meta-llama/Llama-2-70b-hf" # Choose tokenizer carefully
+chat_template:                         # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                      # License type

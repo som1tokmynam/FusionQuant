@@ -1,0 +1,26 @@
+# --- Mergekit Example: linear ---
+# Method: Performs a weighted average of model parameters.
+
+# base_model: Not strictly required for 'linear' if all models are weighted,
+#             but can be included if you want to treat one model as a reference for tokenizer, etc.
+# base_model: "org/model-name-Base"
+models:
+  - model: "org/model-name-A"
+    parameters:
+      weight: 0.5   # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/model-name-B"
+    parameters:
+      weight: 0.3   # Contribution of this model (e.g., 30%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/model-name-C"
+    parameters:
+      weight: 0.2   # Contribution of this model (e.g., 20%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+model_name: MyLinearMerge-v1         # Name of your merge
+dtype: float32                      # Input size float32, float16, bfloat16
+out_dtype: bfloat16                   # output size float32, float16, bfloat16
+merge_method: linear
+parameters:
+  normalize: true                     # If true (default), weights are normalized to sum to 1.
+                                      # If false, absolute weights are used.
+tokenizer_source: "org/model-name-A"  # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                        # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                   # license type

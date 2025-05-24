@@ -1,0 +1,27 @@
+# --- Mergekit Example: dare_ties ---
+# Method: TIES-Merging with DARE (Drop And REscale) techniques.
+
+base_model: "org/model-name-Foundation"
+models:
+  - model: "org/fine-tuned-model-A"
+    parameters:
+      weight: 0.5                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.53                  # Sparsity/pruning factor for this model's contribution.
+  - model: "org/fine-tuned-model-B"
+    parameters:
+      weight: 0.5                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.53                  # Sparsity/pruning factor for this model's contribution.
+
+model_name: MyDareTiesMerge-v1       # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                  # output size float32, float16, bfloat16
+merge_method: dare_ties
+parameters:
+  lambda: 1.0                        # Added: Scaling factor for summed task vectors (default is 1.0)
+                                     # If false, absolute weights are used.
+  rescale: true                      # Key DARE parameter: enables rescaling of weights.
+  int8_mask: false                   # Experimental TIES-specific option (see 'ties' example).
+
+tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                       # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                  # license type

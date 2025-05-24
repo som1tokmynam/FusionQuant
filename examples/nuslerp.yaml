@@ -1,0 +1,42 @@
+# --- Mergekit Example: NuSLERP ---
+# Method: Enhanced Spherical Linear Interpolation.
+# Can SLERP between two models directly or SLERP task vectors if base_model is provided. 
+
+# Scenario 1: NuSLERP between two models directly (no base_model)
+# models:
+#   - model: "org/model-A"
+#     parameters:
+#       weight: 0.7                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+#   - model: "org/model-B"
+#     parameters:
+#       weight: 0.3                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+# merge_method: nuslerp
+# parameters:
+#   nuslerp_flatten: true              # Default, use flattened tensors for SLERP 
+#   # nuslerp_row_wise: false          # Default, use if nuslerp_flatten is false 
+# model_name: MyNuSlerpMerge-v1        # Name of your merge
+# dtype: float32                       # Input size float32, float16, bfloat16
+# out_dtype: bfloat16                  # output size float32, float16, bfloat16
+# tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+# chat_template:                       # Template for chat (Chatml, llama3, etc...)
+# license: apache-2.0                  # license type
+
+# Scenario 2: NuSLERP on task vectors (with base_model)
+base_model: "org/common-ancestor-model"
+models:
+  - model: "org/fine-tuned-model-X"
+    parameters:
+      weight: 0.6                      # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/fine-tuned-model-Y"
+    parameters:
+      weight: 0.4                      # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+merge_method: nuslerp
+parameters:
+  nuslerp_flatten: true                # Default 
+
+model_name: MyNuSlerpMerge-v1          # Name of your merge
+dtype: float32                         # Input size float32, float16, bfloat16
+out_dtype: bfloat16                    # output size float32, float16, bfloat16
+tokenizer_source: "org/model-name-A"   # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                         # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                    # license type

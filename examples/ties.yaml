@@ -1,0 +1,25 @@
+# --- Mergekit Example: ties ---
+# Method: Merges models based on parameter sign agreement (TIES-Merging).
+
+base_model: "org/model-name-Foundation"
+models:
+  - model: "org/fine-tuned-model-A"
+    parameters:
+      weight: 0.5            # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.5           # Sparsity/pruning factor for this model's contribution.
+  - model: "org/fine-tuned-model-B"
+    parameters:
+      weight: 0.5            # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      density: 0.5           # Sparsity/pruning factor for this model's contribution.
+model_name: MyTiesMerge-v1           # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                  # output size float32, float16, bfloat16
+merge_method: ties
+parameters:
+  lambda: 1.0                        # Added: Scaling factor for summed task vectors (default is 1.0)
+  int8_mask: false                   # Experimental TIES-specific option:
+                                     # If true, uses int8 for the agreement mask to save memory.
+                                     # Can potentially affect results slightly. Default is false.
+tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                       # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                  # License type

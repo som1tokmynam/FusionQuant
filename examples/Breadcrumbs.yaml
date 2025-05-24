@@ -1,0 +1,27 @@
+# --- Mergekit Example: Model Breadcrumbs (breadcrumbs_ties) ---
+# Method: Sparsifies task vectors by pruning parameters with the smallest
+#         and largest absolute magnitudes, then applies TIES merging.
+# Reference: https://arxiv.org/abs/2312.06795
+
+base_model: "org/model-name-Foundation"
+models:
+  - model: "org/fine-tuned-model-A"
+    parameters:
+      weight: 0.6                     # Contribution of this model (e.g., 60%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      gamma: 0.02                     # Prune top 2% largest magnitude parameters from this model's task vector
+      density: 0.9                    # Retain 90% of parameters in this model's task vector after pruning
+  - model: "org/fine-tuned-model-B"
+    parameters:
+      weight: 0.4                     # Contribution of this model (e.g., 40%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      gamma: 0.01                     # Prune top 1% largest magnitude parameters
+      density: 0.92                   # Retain 92% of parameters
+
+model_name: MyBreadcrumbsTiesMerge-v1 # Name of your merge
+dtype: float32                        # Input size float32, float16, bfloat16
+out_dtype: bfloat16                   # output size float32, float16, bfloat16
+merge_method: breadcrumbs_ties        # Can also be 'breadcrumbs' for no TIES consensus
+parameters:
+  lambda: 1.0                         # Global scaling factor for summed task vectors (default 1.0)
+tokenizer_source: "org/model-name-A"  # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                        # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                   # license type

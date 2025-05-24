@@ -1,0 +1,48 @@
+# --- Mergekit Example: Multi-SLERP ---
+# Method: Barycentric interpolation on a hypersphere for more than two models. 
+
+# Scenario 1: Multi-SLERP on model weights directly
+# models:
+#   - model: "org/model-alpha"
+#     parameters:
+#       weight: 0.4                    # Contribution of this model (e.g., 40%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+#   - model: "org/model-beta"
+#     parameters:
+#       weight: 0.3                    # Contribution of this model (e.g., 30%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+#   - model: "org/model-gamma"
+#     parameters:
+#       weight: 0.3                    # Contribution of this model (e.g., 30%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+# merge_method: multislerp
+# parameters:
+#   normalize_weights: true            # Default, weights are normalized to sum to 1 
+#   eps: 1.0e-8                        # Default, for numerical stability 
+# model_name: MyMultiSlerpMerge-v1     # Name of your merge
+# dtype: float32                       # Input size float32, float16, bfloat16
+# out_dtype: bfloat16                  # output size float32, float16, bfloat16
+# tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+# chat_template:                       # Template for chat (Chatml, llama3, etc...)
+# license: apache-2.0                  # license type
+
+# Scenario 2: Multi-SLERP on task vectors (with base_model)
+base_model: "org/foundation-model"
+models:
+  - model: "org/variant-1"
+    parameters:
+      weight: 0.5                       # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/variant-2"
+    parameters:
+      weight: 0.3                       # Contribution of this model (e.g., 30%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+  - model: "org/variant-3"
+    parameters:
+      weight: 0.2                       # Contribution of this model (e.g., 20%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5] 
+merge_method: multislerp
+parameters:
+  normalize_weights: true               # Default 
+  # eps: 1.0e-8                         # Default for numerical stability
+
+model_name: MyMultiSlerpMerge-v1        # Name of your merge
+dtype: float32                          # Input size float32, float16, bfloat16
+out_dtype: bfloat16                     # output size float32, float16, bfloat16
+tokenizer_source: "org/model-name-A"    # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                          # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                     # license type

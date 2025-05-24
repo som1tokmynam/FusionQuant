@@ -1,0 +1,17 @@
+# --- Mergekit Example: Nearswap ---
+# Method: Interpolates the base model with parameters from a secondary model
+#         primarily where they are already similar.
+
+base_model: "org/primary-model"        # The model whose structure is mostly preserved 
+models:
+  - model: "org/secondary-donor-model" # Exactly one other model 
+merge_method: nearswap
+parameters:
+  t: 0.001                             # Controls interpolation strength. Higher values increase influence of secondary model for similar params. [cite: 90, 91, 195]
+                                       # Value from reference: QuartetAnemoi-70B-t0.0001
+model_name: MyNearswapMerge-v1         # Name of your merge
+dtype: float32                         # Input size float32, float16, bfloat16
+out_dtype: bfloat16                    # output size float32, float16, bfloat16
+tokenizer_source: "org/model-name-A"   # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                         # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                    # license type

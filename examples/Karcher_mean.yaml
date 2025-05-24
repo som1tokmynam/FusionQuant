@@ -1,0 +1,21 @@
+# --- Mergekit Example: Karcher Mean ---
+# Method: Computes the Karcher mean (Riemannian barycenter) of model parameters. [cite: 24, 129]
+#         No base_model is used.
+
+models:
+  - model: "org/diverse-model-P"         # No per-model weights are used by the karcher method itself,
+                                         # but you might use them if you were to combine karcher with slices in a complex setup.
+                                         # For a direct karcher merge, all models contribute to finding the mean.
+  - model: "org/diverse-model-Q"
+  - model: "org/diverse-model-R"
+merge_method: karcher
+parameters:
+  max_iter: 10                           # Default, maximum iterations for the algorithm 
+  tol: 0.00001                           # Default, convergence tolerance 
+
+model_name: MyKarcherMeanMerge-v1        # Name of your merge
+dtype: float32                           # Input size float32, float16, bfloat16
+out_dtype: bfloat16                      # output size float32, float16, bfloat16
+tokenizer_source: "org/model-name-A"     # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                           # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                      # license type

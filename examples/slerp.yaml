@@ -1,0 +1,19 @@
+# --- Mergekit Example: slerp ---
+# Method: Spherical Linear Interpolation between two models.
+
+base_model: "org/model-name-Base"
+slices:
+  - sources:
+      - model: psmathur/orca_mini_v3_13b
+        layer_range: [0, 40]
+      - model: garage-bAInd/Platypus2-13B
+        layer_range: [0, 40]
+model_name: MySlerpMerge-v1          # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                    # output size float32, float16, bfloat16
+merge_method: slerp
+parameters:
+  t: 0.5                               # Interpolation factor (0.0 = base, 1.0 = other)
+tokenizer_source: "org/model-name-A"   # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                         # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                    # License type

@@ -1,0 +1,31 @@
+# --- Mergekit Example: SCE (Sign and Magnitude Consensus Ensemble) ---
+# Method: Merges models using task arithmetic with adaptive matrix-level weighting based on parameter variance.
+
+base_model: "org/model-name-Foundation"
+models:
+  - model: "org/fine-tuned-model-A"
+    parameters:
+      weight: 0.5                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      select_topk: 0.7               # Example: Retain the top 70% of delta parameters that exhibit the highest
+                                     # variance across the model. Set to 1.0 to disable this specific pruning.
+  - model: "org/fine-tuned-model-B"
+    parameters:
+      weight: 0.5                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      select_topk: 0.7               # Example: Retain the top 70% of delta parameters that exhibit the highest
+                                     # variance across the model. Set to 1.0 to disable this specific pruning.
+  - model: "org/fine-tuned-model-C"
+    parameters:
+      weight: 0.5                    # Contribution of this model (e.g., 50%) (can also use a gradiant) [0.1, 0.1, 0.1, 0.2, 0.5]
+      select_topk: 0.7               # Example: Retain the top 70% of delta parameters that exhibit the highest
+                                     # variance across the model. Set to 1.0 to disable this specific pruning.
+model_name: MySCEMerge-v1            # Name of your merge
+dtype: float32                       # Input size float32, float16, bfloat16
+out_dtype: bfloat16                  # output size float32, float16, bfloat16
+merge_method: sce
+parameters:
+  # SCE-specific parameters
+
+
+tokenizer_source: "org/model-name-A" # Or 'base' if base_model is set, or 'union', careful with this one
+chat_template:                       # Template for chat (Chatml, llama3, etc...)
+license: apache-2.0                  # License type
