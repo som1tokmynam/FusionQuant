@@ -72,7 +72,7 @@ docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outp
 
 * Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.
 * Gradio Share: Add --share option to combined_app.py for easy public sharing of the Gradio interface when needed.
-~~* CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.~~
+* ~~CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.~~
 * Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
 * Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
 * Technologies Used
