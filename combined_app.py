@@ -34,6 +34,7 @@ except ImportError as e:
 HF_TOKEN = os.environ.get("HF_TOKEN") # Global fallback
 TEMP_DIR_ROOT = Path("outputs/combined_app_temp")
 TEMP_DIR_ROOT.mkdir(parents=True, exist_ok=True)
+BUNDLED_IMATRIX_PATH = "/home/user/app/group_merged.txt" # Defined constant for the path
 
 # --- Helper Functions (Defined before UI that might use them in .load) ---
 def get_hf_token_status(token, token_name):
@@ -76,7 +77,6 @@ def load_merge_examples(): # Depends on extract_example_label and mergekit_utils
 def populate_examples_for_dropdown():
     examples = load_merge_examples()
     choices = [example[0] for example in examples]
-    # Use gr.update() for component updates
     return gr.update(choices=choices, value=choices[0] if choices else None)
 
 def load_selected_example_content(selected_label):
@@ -140,7 +140,15 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0"], label="Standard Quants", value=["Q4_K_M"], elem_classes="checkbox-group")
             gguf_use_imatrix = gr.Checkbox(label="Use Importance Matrix", value=False)
             gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ3_M", "IQ3_XXS", "Q4_K_M", "Q4_K_S", "IQ4_NL", "IQ4_XS", "Q5_K_M", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_NL"], visible=False, elem_classes="checkbox-group")
-            gguf_train_data_file = gr.File(label="Training Data (Imatrix)", file_types=[".txt"], visible=False)
+            
+            # --- MODIFICATION START: Replaced gr.File with gr.Checkbox ---
+            gguf_use_bundled_imatrix_checkbox = gr.Checkbox(
+                label=f"Use bundled group_merged.txt for Imatrix (Path: {BUNDLED_IMATRIX_PATH})",
+                value=False, # Default to not checked
+                visible=False, # Visibility controlled by gguf_use_imatrix
+                info=f"If checked and 'Use Importance Matrix' is active, {BUNDLED_IMATRIX_PATH} will be used."
+            )
+            # --- MODIFICATION END ---
 
             gr.Markdown("### Output Settings")
             gguf_custom_name_input = gr.Textbox(label="Custom GGUF Base Name (Optional)", placeholder="e.g., MyAwesomeModel-7B")
@@ -171,7 +179,6 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                 merged_display_value = f"Using: {merged_path_val}"
             else:
                 merged_display_value = "Warning: Merged path from Step 1 is invalid, not found, or Step 1 not yet run successfully."
-        # Use gr.update() for component updates
         return {
             gguf_hf_group: gr.update(visible=is_hf),
             gguf_local_model_path: gr.update(visible=is_local),
@@ -308,7 +315,10 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         model_source_choice, current_merged_model_path, hf_model_id_input, local_model_path_input,
         gguf_custom_name,
         gguf_hf_token_val,
-        quantization_methods, use_importance_matrix, imatrix_quant_methods, training_data_file,
+        quantization_methods, use_importance_matrix, imatrix_quant_methods,
+        # --- MODIFICATION START: Changed parameter name and type ---
+        use_bundled_imatrix_checkbox_value, # This is a boolean from the new checkbox
+        # --- MODIFICATION END ---
         upload_to_huggingface, make_repo_private, local_gguf_output_path,
         should_split_model, split_max_tensors_val, split_max_size_val
     ):
@@ -342,15 +352,45 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
 
         effective_local_out_path = local_gguf_output_path or str(TEMP_DIR_ROOT / "gguf_exports_default")
         Path(effective_local_out_path).mkdir(parents=True, exist_ok=True)
-        train_data_path_for_util = training_data_file.name if training_data_file and hasattr(training_data_file, 'name') else (str(training_data_file) if training_data_file else None)
+        
+        # --- MODIFICATION START: Logic for train_data_path_for_util ---
+        train_data_path_for_util = None
+        if use_importance_matrix: # Value from "Use Importance Matrix" checkbox
+            if use_bundled_imatrix_checkbox_value: # Value from our new checkbox
+                # BUNDLED_IMATRIX_PATH is defined globally e.g. "/home/user/app/group_merged.txt"
+                if Path(BUNDLED_IMATRIX_PATH).is_file():
+                    train_data_path_for_util = BUNDLED_IMATRIX_PATH
+                    if 'log_callback_for_gguf_thread' in locals() and callable(log_callback_for_gguf_thread): # Check if logger is available
+                         log_callback_for_gguf_thread(f"INFO: Using bundled imatrix file: {train_data_path_for_util}", "INFO")
+                else:
+                    if 'log_callback_for_gguf_thread' in locals() and callable(log_callback_for_gguf_thread):
+                        log_callback_for_gguf_thread(f"WARNING: Bundled imatrix file '{BUNDLED_IMATRIX_PATH}' selected but not found or is not a file. Proceeding without it.", "WARNING")
+            else: # Importance matrix enabled, but bundled file not selected
+                if 'log_callback_for_gguf_thread' in locals() and callable(log_callback_for_gguf_thread):
+                    log_callback_for_gguf_thread("INFO: Importance matrix enabled, but the option to use the bundled 'group_merged.txt' was not selected. Proceeding without a specific imatrix training data file.", "INFO")
+        # --- MODIFICATION END ---
+        
         accumulated_logs_gguf = [] if LogsView != gr.Textbox else ""
 
-        def log_callback_for_gguf_thread(raw_log_message, level_arg="INFO"):
+        def log_callback_for_gguf_thread(raw_log_message, level_arg="INFO"): # Ensure this logger is defined before use
             message_content, parsed_level = str(raw_log_message), "INFO"
             known_direct_levels = ["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL_ERROR"]
             if level_arg and level_arg.upper() in known_direct_levels: parsed_level = level_arg.upper()
             if message_content or parsed_level in ["ERROR", "CRITICAL_ERROR"]:
                 log_q_gguf.put(Log(message_content, parsed_level, datetime.datetime.now()))
+        
+        # Re-check logic for train_data_path_for_util with the now-defined logger
+        if use_importance_matrix:
+            if use_bundled_imatrix_checkbox_value:
+                if Path(BUNDLED_IMATRIX_PATH).is_file():
+                    train_data_path_for_util = BUNDLED_IMATRIX_PATH # This was already set
+                    log_callback_for_gguf_thread(f"INFO: Using bundled imatrix file: {train_data_path_for_util}", "INFO") # Log after confirmation
+                else: # File not found, was selected
+                    log_callback_for_gguf_thread(f"WARNING: Bundled imatrix file '{BUNDLED_IMATRIX_PATH}' selected but not found or is not a file. Proceeding without it.", "WARNING")
+                    train_data_path_for_util = None # Explicitly ensure it's None
+            elif train_data_path_for_util is None : # Only log if not already set by a (hypothetical) previous logic block
+                 log_callback_for_gguf_thread("INFO: Importance matrix enabled, but the option to use the bundled 'group_merged.txt' was not selected. Proceeding without a specific imatrix training data file.", "INFO")
+
 
         gguf_thread_instance = None
         def gguf_conversion_thread_target():
@@ -363,7 +403,8 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                     model_id_for_util, local_model_path_for_util,
                     gguf_custom_name,
                     quantization_methods, use_importance_matrix,
-                    imatrix_quant_methods, upload_to_huggingface, make_repo_private, train_data_path_for_util,
+                    imatrix_quant_methods, upload_to_huggingface, make_repo_private,
+                    train_data_path_for_util, # Pass the potentially modified path
                     str(effective_local_out_path), should_split_model,
                     int(split_max_tensors_val) if split_max_tensors_val else 256, split_max_size_val,
                     str(TEMP_DIR_ROOT / "gguf_temps"), str(TEMP_DIR_ROOT / "gguf_downloads")
@@ -399,14 +440,12 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         gguf_thread_instance.join(timeout=10)
 
         html_out, img_path, err_msg = result_container_gguf.get('final_html',""), result_container_gguf.get('image_path'), result_container_gguf.get('error_msg')
-        # Use gr.update() for component updates
         status_md, img_update = "", gr.update(value=None)
         end_log_msg, end_log_lvl = ("GGUF conversion completed with errors." if err_msg else "GGUF conversion completed."), ("ERROR" if err_msg else "INFO")
         if err_msg: status_md = f"### ❌ GGUF Failed\n<pre>{str(err_msg)}</pre>"; end_log_msg = f"GGUF errors: {str(err_msg)}"
         elif html_out: status_md = html_out
         else: status_md = "GGUF finished. Check logs."
         if img_path and Path(img_path).exists():
-            # Use gr.update() for component updates
             img_update = gr.update(value=img_path)
         elif img_path:
             img_warn_msg = f"Output image path {img_path} provided but image not found."
@@ -438,27 +477,31 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_model_source, merged_model_path_state, gguf_model_id, gguf_local_model_path,
             gguf_custom_name_input,
             gguf_hf_token_input,
-            gguf_q_methods, gguf_use_imatrix, gguf_imatrix_q_methods, gguf_train_data_file,
+            gguf_q_methods, gguf_use_imatrix, gguf_imatrix_q_methods,
+            # --- MODIFICATION START: Pass the new checkbox component ---
+            gguf_use_bundled_imatrix_checkbox,
+            # --- MODIFICATION END ---
             gguf_upload_to_hf, gguf_private_repo, gguf_local_output_path,
             gguf_split_model, gguf_split_max_tensors, gguf_split_max_size
         ],
         outputs=[gguf_logs_output, gguf_final_status_display, gguf_output_image])
 
     merged_model_path_state.change(update_gguf_src_visibility,
-                                   inputs=[gguf_model_source, merged_model_path_state],
-                                   outputs=[gguf_hf_group, gguf_local_model_path, gguf_merged_model_display])
+                                    inputs=[gguf_model_source, merged_model_path_state],
+                                    outputs=[gguf_hf_group, gguf_local_model_path, gguf_merged_model_display])
 
     gguf_model_source.change(update_gguf_src_visibility,
-                             inputs=[gguf_model_source, merged_model_path_state],
-                             outputs=[gguf_hf_group, gguf_local_model_path, gguf_merged_model_display])
+                                inputs=[gguf_model_source, merged_model_path_state],
+                                outputs=[gguf_hf_group, gguf_local_model_path, gguf_merged_model_display])
 
     def initial_load_updates(merged_path, src_choice_val, imatrix_val, split_val, upload_val):
         updates = update_gguf_src_visibility(src_choice_val, merged_path)
-        # Use gr.update() for component updates
         updates.update({
             gguf_q_methods: gr.update(visible=not imatrix_val),
             gguf_imatrix_q_methods: gr.update(visible=imatrix_val),
-            gguf_train_data_file: gr.update(visible=imatrix_val),
+            # --- MODIFICATION START: Update visibility for the new checkbox ---
+            gguf_use_bundled_imatrix_checkbox: gr.update(visible=imatrix_val),
+            # --- MODIFICATION END ---
             gguf_split_max_tensors: gr.update(visible=split_val),
             gguf_split_max_size: gr.update(visible=split_val),
             gguf_private_repo: gr.update(visible=upload_val)
@@ -469,12 +512,21 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         inputs=[merged_model_path_state, gguf_model_source, gguf_use_imatrix, gguf_split_model, gguf_upload_to_hf],
         outputs=[
             gguf_hf_group, gguf_local_model_path, gguf_merged_model_display,
-            gguf_q_methods, gguf_imatrix_q_methods, gguf_train_data_file,
+            gguf_q_methods, gguf_imatrix_q_methods,
+            # --- MODIFICATION START: Update output component for initial load ---
+            gguf_use_bundled_imatrix_checkbox,
+            # --- MODIFICATION END ---
             gguf_split_max_tensors, gguf_split_max_size, gguf_private_repo
         ])
 
-    # Lambdas already use gr.update(), which is correct.
-    gguf_use_imatrix.change(lambda u: (gr.update(visible=not u), gr.update(visible=u), gr.update(visible=u)), inputs=gguf_use_imatrix, outputs=[gguf_q_methods, gguf_imatrix_q_methods, gguf_train_data_file], api_name=False)
+    # --- MODIFICATION START: Update lambda for imatrix checkbox visibility ---
+    gguf_use_imatrix.change(
+        lambda u: (gr.update(visible=not u), gr.update(visible=u), gr.update(visible=u)),
+        inputs=gguf_use_imatrix,
+        outputs=[gguf_q_methods, gguf_imatrix_q_methods, gguf_use_bundled_imatrix_checkbox], # Target new checkbox
+        api_name=False
+    )
+    # --- MODIFICATION END ---
     gguf_split_model.change(lambda s: (gr.update(visible=s), gr.update(visible=s)), inputs=gguf_split_model, outputs=[gguf_split_max_tensors, gguf_split_max_size], api_name=False)
     gguf_upload_to_hf.change(lambda u: gr.update(visible=u), inputs=gguf_upload_to_hf, outputs=[gguf_private_repo], api_name=False)
 
