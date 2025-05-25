@@ -1,8 +1,8 @@
-# Use Ubuntu base image instead of CUDA since we don't need GPU support
-FROM ubuntu:22.04
+# Use NVIDIA CUDA base image for GPU support
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get update -y && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends --fix-missing \
     git \
@@ -62,7 +62,7 @@ ENV PYENV_ROOT="${HOME}/.pyenv"
 ENV PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
 ARG PYTHON_VERSION=3.11
 
-# Install pyenv with better error handling and SSL certificate fix
+# Install pyenv with better error handling
 RUN set -e && \
     echo "Installing pyenv..." && \
     curl -sSL https://pyenv.run | bash && \
@@ -83,136 +83,108 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create a more flexible constraint file that allows version ranges
 USER root
-RUN echo "Creating flexible constraint file..." && \
+RUN echo "Creating flexible constraint file from main requirements.txt..." && \
     cp /home/user/app/requirements.txt /home/user/app/requirements-constraints.txt && \
-    echo "Original requirements.txt:" && \
-    cat /home/user/app/requirements.txt && \
+    echo "Original requirements.txt (for constraints):" && \
+    cat /home/user/app/requirements-constraints.txt && \
     echo "--- Processing constraints ---" && \
     # 1. Strip [extras] like [oauth]
     sed -i -E 's/^([^#\s]+)\[[^]]+\]/\1/' /home/user/app/requirements-constraints.txt && \
-    # 2. Comment out git+ lines as they are not valid constraints
+    # 2. Comment out git+ lines and lines with @ as they are not valid for pip constraint files
     sed -i -E '/^\s*git\+/s/^/# (Constraint-disabled VCS) /' /home/user/app/requirements-constraints.txt && \
-    # 3. Convert strict version pins to minimum versions for flexibility
-    sed -i -E 's/^([^#=]+)==([0-9]+\.[0-9]+(\.[0-9]+)?)/\1>=\2/' /home/user/app/requirements-constraints.txt && \
-    # 4. Keep huggingface-hub flexible to resolve conflicts  <--- MODIFY THIS SECTION
-    # Comment out or remove the following line:
-    # sed -i -E 's/^huggingface-hub>=.*/# huggingface-hub - allowing flexible resolution/' /home/user/app/requirements-constraints.txt && \
-    echo "--- Processed constraint file ---" && \
+    sed -i -E '/@/s/^/# (Constraint-disabled URL-based) /' /home/user/app/requirements-constraints.txt && \
+    # 3. Convert strict version pins to minimum versions for flexibility (e.g. ==2.0.1 to >=2.0.1)
+    #    Handle ==x.y.z, ==x.y
+    sed -i -E 's/^([^#\s<>=!~]+)==([0-9]+\.[0-9]+(\.[0-9]+([a-zA-Z0-9.]*)?)?)/\1>=\2/' /home/user/app/requirements-constraints.txt && \
+    echo "--- Processed constraint file (/home/user/app/requirements-constraints.txt) ---" && \
     cat /home/user/app/requirements-constraints.txt
 USER 1000
 
-# Setup llama.cpp
+# Setup llama.cpp by cloning the repository
+# Temporarily switch to root to clone into APP_DIR which might be owned by user
 USER root
-RUN cd /home/user/app && git clone https://github.com/ggerganov/llama.cpp.git && \
-    chown -R 1000:1000 llama.cpp
-
-# Build llama.cpp for CPU-only usage
-USER root
-RUN cd /home/user/app/llama.cpp && \
-    echo "=== Building llama.cpp for CPU-only usage ===" && \
-    echo "Current directory: $(pwd)" && \
-    echo "=== CMAKE Configuration (CPU-only) ===" && \
-    cmake -S . -B build \
-        -DLLAMA_CURL=OFF \
-        -DGGML_CUDA=OFF \
-        -DGGML_METAL=OFF \
-        -DGGML_OPENCL=OFF \
-        -DGGML_VULKAN=OFF \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DLLAMA_BUILD_TESTS=OFF \
-        -DLLAMA_BUILD_EXAMPLES=ON \
-        -DLLAMA_BUILD_SERVER=OFF && \
-    echo "=== Building llama.cpp components ===" && \
-    cmake --build build --config Release --parallel $(nproc) && \
-    echo "=== Build completed ===" && \
-    echo "Contents of build directory:" && \
-    find build -name "llama-*" -type f && \
-    echo "Contents of build/bin directory:" && \
-    ls -la build/bin/ 2>/dev/null || echo "build/bin directory does not exist" && \
-    echo "Contents of build directory (all executables):" && \
-    find build -type f -executable -name "llama-*" && \
-    echo "=== Testing built executables ===" && \
-    if [ -f build/bin/llama-quantize ]; then \
-        echo "llama-quantize found in build/bin/"; \
-        file build/bin/llama-quantize; \
-    elif [ -f build/llama-quantize ]; then \
-        echo "llama-quantize found in build/"; \
-        file build/llama-quantize; \
-    else \
-        echo "llama-quantize not found, searching..."; \
-        find build -name "*quantize*" -type f; \
-    fi && \
-    if [ -f build/bin/llama-imatrix ]; then \
-        echo "llama-imatrix found in build/bin/"; \
-        file build/bin/llama-imatrix; \
-    elif [ -f build/llama-imatrix ]; then \
-        echo "llama-imatrix found in build/"; \
-        file build/llama-imatrix; \
-    else \
-        echo "llama-imatrix not found, searching..."; \
-        find build -name "*imatrix*" -type f; \
-    fi && \
-    chown -R 1000:1000 /home/user/app/llama.cpp && \
-    echo "llama.cpp built successfully for CPU-only usage"
-
+RUN cd /home/user/app && \
+    git clone https://github.com/ggerganov/llama.cpp.git && \
+    chown -R 1000:1000 /home/user/app/llama.cpp # Ensure user owns the cloned repo
+# Switch back to user
 USER 1000
 
-# Install llama.cpp's requirements with more flexible approach
+# Note: The llama.cpp compilation is now deferred to start.sh
+
+# Install llama.cpp's Python requirements
+# These are installed after the main requirements.txt to allow constraints to work,
+# and then we'll fix huggingface-hub if it gets downgraded.
 RUN cd /home/user/app/llama.cpp && \
     if [ -f requirements.txt ]; then \
-        echo "Installing llama.cpp/requirements.txt with flexible resolution" && \
-        # First try with constraints, if it fails, install without constraints
+        echo "Installing llama.cpp/requirements.txt" && \
         pip install --no-cache-dir -r requirements.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation failed, trying without constraints..." && \
-         pip install --no-cache-dir -r requirements.txt) && \
-        echo "Successfully installed llama.cpp/requirements.txt"; \
+        (echo "Constraint installation for llama.cpp/requirements.txt failed, trying without constraints..." && \
+         pip install --no-cache-dir -r requirements.txt); \
     else \
         echo "llama.cpp/requirements.txt not found, skipping."; \
     fi
 
-# Install convert_hf_to_gguf requirements with flexible approach
 RUN cd /home/user/app/llama.cpp && \
     if [ -f requirements/requirements-convert_hf_to_gguf.txt ]; then \
         echo "Installing llama.cpp/requirements/requirements-convert_hf_to_gguf.txt" && \
         pip install --no-cache-dir -r requirements/requirements-convert_hf_to_gguf.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation failed, trying without constraints..." && \
-         pip install --no-cache-dir -r requirements/requirements-convert_hf_to_gguf.txt) && \
-        echo "Successfully installed requirements-convert_hf_to_gguf.txt"; \
+        (echo "Constraint installation for convert_hf_to_gguf.txt failed, trying without constraints..." && \
+         pip install --no-cache-dir -r requirements/requirements-convert_hf_to_gguf.txt); \
     else \
         echo "llama.cpp/requirements/requirements-convert_hf_to_gguf.txt not found, skipping."; \
     fi
 
-# Install tool_bench requirements with flexible approach
 RUN cd /home/user/app/llama.cpp && \
     if [ -f requirements/requirements-tool_bench.txt ]; then \
         echo "Installing llama.cpp/requirements/requirements-tool_bench.txt" && \
         pip install --no-cache-dir -r requirements/requirements-tool_bench.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation failed, trying without constraints..." && \
-         pip install --no-cache-dir -r requirements/requirements-tool_bench.txt) && \
-        echo "Successfully installed requirements-tool_bench.txt"; \
+        (echo "Constraint installation for tool_bench.txt failed, trying without constraints..." && \
+         pip install --no-cache-dir -r requirements/requirements-tool_bench.txt); \
     else \
         echo "llama.cpp/requirements/requirements-tool_bench.txt not found, skipping."; \
     fi
 
+# Force re-install/upgrade huggingface-hub to the version required by the main application
+RUN echo "Ensuring correct huggingface-hub version for primary application dependencies..." && \
+    pip install --no-cache-dir -U "huggingface-hub>=0.24.0,<1.0" && \
+    echo "Final huggingface-hub version check:" && \
+    pip show huggingface-hub
+
 # Copy the rest of your application files
 COPY --chown=user:user . /home/user/app/
 
-# Copy groups_merged.txt if it exists
-RUN if [ -f groups_merged.txt ]; then \
-        cp groups_merged.txt ${HOME}/app/llama.cpp/groups_merged.txt; \
+# Copy groups_merged.txt if it exists into llama.cpp directory
+# This should be done before start.sh runs, if start.sh's cmake process needs it
+RUN if [ -f /home/user/app/groups_merged.txt ]; then \
+        cp /home/user/app/groups_merged.txt /home/user/app/llama.cpp/groups_merged.txt; \
+        echo "Copied groups_merged.txt to llama.cpp directory."; \
+    else \
+        echo "groups_merged.txt not found in app root, not copied."; \
     fi
 
-# Copy examples for mergekit if they exist
-RUN if [ -d examples ]; then \
-        cp -r examples/* ./examples/ 2>/dev/null || mkdir -p ./examples; \
+# Copy examples for mergekit if they exist from the app root
+RUN if [ -d /home/user/app/examples ]; then \
+        mkdir -p /home/user/app/examples_target && \
+        cp -r /home/user/app/examples/* /home/user/app/examples_target/ 2>/dev/null || echo "No examples to copy or error during copy." ; \
+        echo "Copied mergekit examples."; \
+    else \
+        mkdir -p /home/user/app/examples_target; \
+        echo "examples directory not found in app root, not copied."; \
     fi
 
 # Create directories
 RUN mkdir -p ${HOME}/app/outputs ${HOME}/app/downloads
 
-# Environment variables (removed CUDA-related vars)
+# Copy the start.sh script and make it executable
+COPY --chown=user:user start.sh /home/user/app/start.sh
+RUN chmod +x /home/user/app/start.sh
+
+# Environment variables
 ENV PYTHONPATH=${HOME}/app \
     PYTHONUNBUFFERED=1 \
+    CUDA_HOME=/usr/local/cuda \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH} \
+    PATH=/usr/local/cuda/bin:${PATH} \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     GRADIO_ALLOW_FLAGGING=never \
     GRADIO_NUM_PORTS=1 \
@@ -222,10 +194,11 @@ ENV PYTHONPATH=${HOME}/app \
     TQDM_POSITION=-1 \
     TQDM_MININTERVAL=1 \
     SYSTEM=spaces \
+    RUN_LOCALLY=1 \
     PATH=${PATH}:${HOME}/.local/bin:${PYENV_ROOT}/shims:${PYENV_ROOT}/bin
 
 # Expose Gradio port
 EXPOSE 7860
 
-# Entrypoint/CMD
-CMD ["python", "combined_app.py"]
+# Entrypoint/CMD to run the start.sh script
+CMD ["/bin/bash", "/home/user/app/start.sh"]

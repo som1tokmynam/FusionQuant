@@ -20,7 +20,7 @@ except ImportError:
 
 try:
     import mergekit_utils
-    from gradio_logsview.logsview import LogsView, Log
+    from gradio_logsview.logsview import LogsView, Log # type: ignore
 except ImportError as e:
     print(f"WARNING: mergekit_utils.py or gradio_logsview not found. Model merging/logging will be basic. Error: {e}")
     mergekit_utils = None
@@ -76,7 +76,7 @@ def load_merge_examples(): # Depends on extract_example_label and mergekit_utils
 def populate_examples_for_dropdown():
     examples = load_merge_examples()
     choices = [example[0] for example in examples]
-    # MODIFIED: Changed to gr.update()
+    # Use gr.update() for component updates
     return gr.update(choices=choices, value=choices[0] if choices else None)
 
 def load_selected_example_content(selected_label):
@@ -113,7 +113,9 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                     merge_hf_token_input = gr.Textbox(label="HF Write Token (Mergekit upload)", type="password", placeholder="Uses HF_TOKEN env var if blank.")
                     merge_repo_name = gr.Textbox(label="HF Repo Name (Mergekit upload)", placeholder="e.g., YourUser/MyMerge")
                     merge_local_save_path = gr.Textbox(label="Local Save Path (Merged Model)", placeholder=f"e.g., {TEMP_DIR_ROOT}/my-merged-model")
+                    merge_use_gpu = gr.Checkbox(label="Use GPU for Merge (if available)", value=True, info="Uncheck to force CPU merge.")
                     merge_use_for_gguf = gr.Checkbox(label="✅ Use merged model for GGUF (Step 2)", value=True)
+
             merge_button = gr.Button("Run Merge", variant="primary", interactive=mergekit_utils is not None)
             merge_status_output = gr.Markdown()
             log_elem_class = "logs_view_container" if LogsView != gr.Textbox else "Textbox"
@@ -126,28 +128,28 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gr.Markdown("## Configure and Run GGUF Conversion")
             if not gguf_utils: gr.Markdown("### ❌ `gguf_utils.py` not loaded. GGUF disabled.")
             gguf_model_source = gr.Radio(["Output from Merge Step", "HF Hub", "Local Path"], label="GGUF Model Source", value="Output from Merge Step")
-            with gr.Group(visible=False) as gguf_hf_group: 
+            with gr.Group(visible=False) as gguf_hf_group:
                 gguf_model_id = gr.Textbox(label="HF Model ID", placeholder="e.g., meta-llama/Llama-2-7b-hf")
-            gguf_local_model_path = gr.Textbox(label="Local Model Path", placeholder="/path/to/model_dir", visible=False) 
-            gguf_merged_model_display = gr.Textbox(label="Using Merged Model Path:", interactive=False, visible=True) 
+            gguf_local_model_path = gr.Textbox(label="Local Model Path", placeholder="/path/to/model_dir", visible=False)
+            gguf_merged_model_display = gr.Textbox(label="Using Merged Model Path:", interactive=False, visible=True)
 
             gr.Markdown("### Hugging Face Settings (GGUF)")
             gguf_hf_token_input = gr.Textbox(label="HF Token (GGUF Operations)", type="password", placeholder="Uses global HF_TOKEN env var if blank.")
 
             gr.Markdown("### Quantization Settings")
-            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0"], label="Standard Quants", value=["Q4_K_M"], elem_classes="checkbox-group") 
+            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0"], label="Standard Quants", value=["Q4_K_M"], elem_classes="checkbox-group")
             gguf_use_imatrix = gr.Checkbox(label="Use Importance Matrix", value=False)
-            gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ3_M", "IQ3_XXS", "Q4_K_M", "Q4_K_S", "IQ4_NL", "IQ4_XS", "Q5_K_M", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_NL"], visible=False, elem_classes="checkbox-group") 
-            gguf_train_data_file = gr.File(label="Training Data (Imatrix)", file_types=[".txt"], visible=False) 
+            gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ3_M", "IQ3_XXS", "Q4_K_M", "Q4_K_S", "IQ4_NL", "IQ4_XS", "Q5_K_M", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_NL"], visible=False, elem_classes="checkbox-group")
+            gguf_train_data_file = gr.File(label="Training Data (Imatrix)", file_types=[".txt"], visible=False)
 
             gr.Markdown("### Output Settings")
             gguf_custom_name_input = gr.Textbox(label="Custom GGUF Base Name (Optional)", placeholder="e.g., MyAwesomeModel-7B")
             gguf_upload_to_hf = gr.Checkbox(label="Upload GGUF to HF", value=True)
-            gguf_private_repo = gr.Checkbox(label="Make GGUF Repo Private", value=False, visible=True) 
+            gguf_private_repo = gr.Checkbox(label="Make GGUF Repo Private", value=False, visible=True)
             gguf_local_output_path = gr.Textbox(label="Local Save Path (GGUFs)", placeholder=f"e.g., {TEMP_DIR_ROOT}/gguf_exports")
             gguf_split_model = gr.Checkbox(label="Split GGUF Model Shards")
-            gguf_split_max_tensors = gr.Number(label="Max Tensors/Shard", value=256, visible=False) 
-            gguf_split_max_size = gr.Textbox(label="Max Size/Shard (e.g., 5G)", visible=False) 
+            gguf_split_max_tensors = gr.Number(label="Max Tensors/Shard", value=256, visible=False)
+            gguf_split_max_size = gr.Textbox(label="Max Size/Shard (e.g., 5G)", visible=False)
 
             gguf_convert_btn = gr.Button("Convert to GGUF & Quantize", variant="primary", interactive=gguf_utils is not None)
             if 'LogsView' in globals() and LogsView != gr.Textbox:
@@ -155,7 +157,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             else:
                 gguf_logs_output = gr.Textbox(label="GGUF Conversion Logs", lines=15, interactive=False, elem_classes=log_elem_class)
             gguf_final_status_display = gr.Markdown()
-            gguf_output_image = gr.Image(show_label=False) 
+            gguf_output_image = gr.Image(show_label=False)
 
     # --- Event Handler Function Definitions ---
     def update_gguf_src_visibility(choice, merged_path_val):
@@ -169,8 +171,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                 merged_display_value = f"Using: {merged_path_val}"
             else:
                 merged_display_value = "Warning: Merged path from Step 1 is invalid, not found, or Step 1 not yet run successfully."
-        
-        # MODIFIED: Changed to gr.update() for each component
+        # Use gr.update() for component updates
         return {
             gguf_hf_group: gr.update(visible=is_hf),
             gguf_local_model_path: gr.update(visible=is_local),
@@ -178,7 +179,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         }
 
     # --- Main Handler Function Definitions ---
-    def handle_merge_models(yaml_config, hf_token_merge_input, repo_name_merge, local_save_path, use_for_gguf, current_gguf_model_source_choice):
+    def handle_merge_models(yaml_config, hf_token_merge_input, repo_name_merge, local_save_path, use_gpu_for_merge, use_for_gguf, current_gguf_model_source_choice):
         if not mergekit_utils:
             error_msg = "Mergekit utils not loaded."
             log_entry = [Log(error_msg, "ERROR", datetime.datetime.now())] if LogsView != gr.Textbox else error_msg
@@ -237,7 +238,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                 _, final_path_from_util, error_msg_from_util = mergekit_utils.process_model_merge(
                     yaml_config_str=yaml_config, hf_token_merge=effective_hf_token_for_merge,
                     repo_name=repo_name_merge, local_path_merge_output=output_path_for_mergekit_process,
-                    community_hf_token_val=community_token, use_gpu_bool=False,
+                    community_hf_token_val=community_token, use_gpu_bool=use_gpu_for_merge,
                     temp_dir_base=str(TEMP_DIR_ROOT), log_fn=log_callback_for_thread
                 )
                 result_container['final_path'] = final_path_from_util
@@ -256,7 +257,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             initial_log_display = accumulated_logs.copy()
         else:
             accumulated_logs = initial_log_message + "\n"; initial_log_display = accumulated_logs
-        
+
         yield {merge_status_output: "Starting merge...", merge_logs_output: initial_log_display, merged_model_path_state: None}
 
         while True:
@@ -350,7 +351,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             if level_arg and level_arg.upper() in known_direct_levels: parsed_level = level_arg.upper()
             if message_content or parsed_level in ["ERROR", "CRITICAL_ERROR"]:
                 log_q_gguf.put(Log(message_content, parsed_level, datetime.datetime.now()))
-        
+
         gguf_thread_instance = None
         def gguf_conversion_thread_target():
             try:
@@ -398,14 +399,14 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         gguf_thread_instance.join(timeout=10)
 
         html_out, img_path, err_msg = result_container_gguf.get('final_html',""), result_container_gguf.get('image_path'), result_container_gguf.get('error_msg')
-        # MODIFIED: Changed to gr.update()
+        # Use gr.update() for component updates
         status_md, img_update = "", gr.update(value=None)
         end_log_msg, end_log_lvl = ("GGUF conversion completed with errors." if err_msg else "GGUF conversion completed."), ("ERROR" if err_msg else "INFO")
         if err_msg: status_md = f"### ❌ GGUF Failed\n<pre>{str(err_msg)}</pre>"; end_log_msg = f"GGUF errors: {str(err_msg)}"
         elif html_out: status_md = html_out
         else: status_md = "GGUF finished. Check logs."
         if img_path and Path(img_path).exists():
-            # MODIFIED: Changed to gr.update()
+            # Use gr.update() for component updates
             img_update = gr.update(value=img_path)
         elif img_path:
             img_warn_msg = f"Output image path {img_path} provided but image not found."
@@ -424,11 +425,12 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
     merge_button.click(handle_merge_models,
         inputs=[
             merge_yaml_config, merge_hf_token_input, merge_repo_name,
-            merge_local_save_path, merge_use_for_gguf, gguf_model_source
+            merge_local_save_path, merge_use_gpu, merge_use_for_gguf,
+            gguf_model_source
         ],
         outputs=[
             merge_status_output, merge_logs_output, merged_model_path_state,
-            gguf_hf_group, gguf_local_model_path, gguf_merged_model_display # These are keys in the dict returned by update_gguf_src_visibility
+            gguf_hf_group, gguf_local_model_path, gguf_merged_model_display
         ])
 
     gguf_convert_btn.click(handle_gguf_conversion,
@@ -452,7 +454,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
 
     def initial_load_updates(merged_path, src_choice_val, imatrix_val, split_val, upload_val):
         updates = update_gguf_src_visibility(src_choice_val, merged_path)
-        # MODIFIED: Changed to gr.update() for each component
+        # Use gr.update() for component updates
         updates.update({
             gguf_q_methods: gr.update(visible=not imatrix_val),
             gguf_imatrix_q_methods: gr.update(visible=imatrix_val),
@@ -469,9 +471,9 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_hf_group, gguf_local_model_path, gguf_merged_model_display,
             gguf_q_methods, gguf_imatrix_q_methods, gguf_train_data_file,
             gguf_split_max_tensors, gguf_split_max_size, gguf_private_repo
-        ]) # These are keys in the dict returned by initial_load_updates
+        ])
 
-    # MODIFIED: Changed to gr.update() for each component in lambdas
+    # Lambdas already use gr.update(), which is correct.
     gguf_use_imatrix.change(lambda u: (gr.update(visible=not u), gr.update(visible=u), gr.update(visible=u)), inputs=gguf_use_imatrix, outputs=[gguf_q_methods, gguf_imatrix_q_methods, gguf_train_data_file], api_name=False)
     gguf_split_model.change(lambda s: (gr.update(visible=s), gr.update(visible=s)), inputs=gguf_split_model, outputs=[gguf_split_max_tensors, gguf_split_max_size], api_name=False)
     gguf_upload_to_hf.change(lambda u: gr.update(visible=u), inputs=gguf_upload_to_hf, outputs=[gguf_private_repo], api_name=False)
