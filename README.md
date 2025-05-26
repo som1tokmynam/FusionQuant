@@ -46,12 +46,24 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ---
 
+## Changelog
+
+### Version 1.3
+
+* Added a new environment variable: APP_TEMP_ROOT if set to change the working directory for merging and quanting.
+* Changed base image to llama.cpp base image (reverted to earlier build, last build is broken).
+* Added CUDA support for both merging and quanting.
+* Added checkbox to merge operations to choose CPU or GPU merging.
+* Added Imatrix calibration file checkbox (using bartowski calibration file).
+
+---
+
 ## How to Run
 
 You can run FusionQuant using Docker:
 
 ```bash
-docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:latest
+docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" -e APP_TEMP_ROOT="/path/to/your/temp/dir" --platform=linux/amd64 som1tokmynam/fusionquant:latest
 ```
 
 ## Explanation of Parameters:
@@ -62,8 +74,9 @@ docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outp
 * -it: Runs the container in interactive mode with a TTY.
 * -p 7860:7860: Maps port 7860 on your host to port 7860 in the container (Gradio UI).
 * -e HF_TOKEN="YOURTOKEN(OPTIONAL)": Optionally, pass your Hugging Face token as an environment variable for uploads. This is recommended for uploading to private repos or your own namespace.
+* -e APP_TEMP_ROOT="/path/to/your/temp/dir": (Optional) Set a custom temporary working directory for merging and quantization processes. If not set, it will use a default temporary directory within the container. This is useful if you need to manage temporary space usage on a specific mount or storage.
 * --platform=linux/amd64: Specifies the platform, useful for running on machines with different architectures (e.g., ARM-based Macs).
-* som1tokmynam/fusionquant:1.1: The Docker image to run.
+* som1tokmynam/fusionquant:latest: The Docker image to run.
 * Once running, open your web browser and navigate to http://localhost:7860.
 
 ---
@@ -75,7 +88,11 @@ docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outp
 * ~~CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.~~
 * Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
 * Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
-* Technologies Used
+ 
+---
+ 
+## Technologies Used
+
 * Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess) 
 
 ---
