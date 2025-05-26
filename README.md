@@ -63,7 +63,7 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 You can run FusionQuant using Docker:
 
 ```bash
-docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" -e APP_TEMP_ROOT="/path/to/your/temp/dir" --platform=linux/amd64 som1tokmynam/fusionquant:latest
+docker run --user=root --name fusionquant -v "/YOURVOLUMEPATH:/path/to/your/temp/dir" -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" -e APP_TEMP_ROOT="/path/to/your/mounted/volume" --platform=linux/amd64 som1tokmynam/fusionquant:latest
 ```
 
 ## Explanation of Parameters:
