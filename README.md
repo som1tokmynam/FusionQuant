@@ -88,13 +88,7 @@ docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outp
 * ~~CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.~~
 * Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
 * Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
- 
----
- 
-## Technologies Used
-
-* Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess) 
-
+  
 ---
 
 ## Acknowledgements and Core Technologies
