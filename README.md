@@ -108,7 +108,7 @@ To run FusionQuant effectively using Docker, especially with GPU acceleration an
 
 ## How to Run
 
-You can run FusionQuant using Docker. Ensure you have met the "Requirements for Local Execution" above.
+* You can run FusionQuant using Docker. Ensure you have met the "Requirements for Local Execution" above.
 
 ```bash
 docker run \
@@ -125,6 +125,10 @@ docker run \
     --platform=linux/amd64 \
     som1tokmynam/fusionquant:latest
 ```
+
+
+* You can also run FusionQuant using Runpod https://runpod.io/console/deploy?template=d17t1a64np&ref=49zy1qyf
+
 
 ---
 
