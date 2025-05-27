@@ -149,7 +149,7 @@ docker run \
 
 * som1tokmynam/fusionquant:latest: The Docker image and tag to run.
 
-# Once running, open your web browser and navigate to http://localhost:7860.
+## Once running, open your web browser and navigate to http://localhost:7860.
 
 ---
 
