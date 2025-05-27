@@ -11,10 +11,15 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 <img src="Capture.PNG" alt="FusionQuant Merge Interface" width="700"/>
 
-**Step 2: Convert to GGUF/EXL2 & Quantize (Llama.cpp / Exllamav2)**
-*Convert merged or standalone models to GGUF or EXL2, with various quantization options.*
+**Step 2: Convert to GGUF & Quantize (Llama.cpp / Exllamav2)**
+*Convert merged or standalone models to GGUF, with various quantization options.*
 
 <img src="Capture2.PNG" alt="FusionQuant GGUF/EXL2 Interface" width="700"/>
+
+**Step 3: Convert to EXL2 & Quantize (Llama.cpp / Exllamav2)**
+*Convert merged or standalone models to EXL2, with various quantization options.*
+
+<img src="Capture3.PNG" alt="FusionQuant GGUF/EXL2 Interface" width="700"/>
 
 ---
 
