@@ -1,20 +1,38 @@
 ﻿# FusionQuant 🚀
 
-**FusionQuant Model Merge & GGUF Conversion Pipeline - Your Free Toolkit for Custom LLMs!**
+**FusionQuant Model Merge & GGUF/EXL2 Conversion Pipeline - Your Free Toolkit for Custom LLMs!**
 
-FusionQuant empowers you to easily merge language models using Mergekit and then convert them to the efficient GGUF format with Llama.cpp for local execution. Whether you're experimenting with model capabilities or optimizing for deployment, FusionQuant provides a streamlined, user-friendly interface.
+FusionQuant empowers you to easily merge language models using Mergekit and then convert them to the efficient GGUF format (with Llama.cpp) or EXL2 format (with Exllamav2) for local execution. Whether you're experimenting with model capabilities or optimizing for deployment, FusionQuant provides a streamlined, user-friendly interface.
 
 ## Screenshots
 
 **Step 1: Merge Models (Mergekit)**
-*Configure your model merge using YAML and optionally upload to Hugging Face.*
+*Configure your model merge using YAML and optionally upload to Hugging Face (public or private).*
 
 <img src="Capture.PNG" alt="FusionQuant Merge Interface" width="700"/>
 
-**Step 2: Convert to GGUF & Quantize (Llama.cpp)**
-*Convert merged or standalone models to GGUF, with various quantization options.*
+**Step 2: Convert to GGUF/EXL2 & Quantize (Llama.cpp / Exllamav2)**
+*Convert merged or standalone models to GGUF or EXL2, with various quantization options.*
 
-<img src="Capture2.PNG" alt="FusionQuant GGUF Interface" width="700"/>
+<img src="Capture2.PNG" alt="FusionQuant GGUF/EXL2 Interface" width="700"/>
+
+---
+
+## Changelog
+
+### Version 1.4
+* **Base Docker Image Overhaul**: Changed base Docker image to use a custom precompiled `llama.cpp` and `exl2` for optimized performance and feature set.
+* **Added EXL2 Quantization**: Introduced the option to quantize models to the EXL2 format using Exllamav2.
+* **Local Model Saving for Merges**: Users can now save downloaded models locally for later use in merge operations, reducing redundant downloads.
+* **Private Repository for Merges**: Added an option to make the Hugging Face repository private when uploading merged models.
+* **Expanded GGUF Quantization Choices**: Included more quantization options for GGUF conversions.
+
+### Version 1.3
+* Added a new environment variable: APP_TEMP_ROOT if set to change the working directory for merging and quanting.
+* Changed base image to llama.cpp base image (reverted to earlier build, last build is broken).
+* Added CUDA support for both merging and quanting.
+* Added checkbox to merge operations to choose CPU or GPU merging.
+* Added Imatrix calibration file checkbox (using bartowski calibration file).
 
 ---
 
@@ -23,79 +41,155 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 ### Effortless Model Merging (Powered by Mergekit)
 * **Combine Model Capabilities**: Merge base models with other fine-tuned models to create new, specialized versions.
 * **Flexible YAML Configuration**: Define complex merge strategies with ease using the intuitive Mergekit YAML editor.
-* **Quick Start Examples**: Jump right in with pre-defined merge examples like "Delta Linear" (Note: The screenshot shows "Example: Delta, Linear..." as a placeholder in the YAML, and the `load_merge_examples` function in `combined_app.py` loads various examples including a default linear merge [cite: 1]) to get you started.
-* **Hugging Face Integration**: Optionally upload your freshly merged models directly to your Hugging Face Hub repository.
+* **Quick Start Examples**: Jump right in with pre-defined merge examples like "Delta Linear" to get you started.
+* **Hugging Face Integration**: Optionally upload your freshly merged models directly to your Hugging Face Hub repository (public or private).
+* **Local Model Cache**: Save downloaded models locally to reuse in future merges without re-downloading.
 
-### Advanced GGUF Conversion & Quantization (Powered by Llama.cpp)
-* **Optimize for Local Use**: Convert your models (merged or standalone) to the popular GGUF format, perfect for running LLMs efficiently on consumer hardware with tools like Llama.cpp.
-* **Wide Range of Quantization Options**: Choose from various standard quantization levels (e.g., Q2_K, Q3_K_M, Q4_K_M, Q5_K_M, Q8_0) to balance model size, speed, and performance according to your needs.
-* **Importance Matrix Support**: Advanced users can leverage an importance matrix for more nuanced and potentially higher-quality quantization.
-* **Large Model Handling**: Option to split very large GGUF models into manageable shards.
-* **Hugging Face Upload**: Seamlessly upload your GGUF models to Hugging Face, with options for public or private repositories.
+### Advanced GGUF & EXL2 Conversion & Quantization
+* **Optimize for Local Use**: Convert your models (merged or standalone) to the popular GGUF format (via Llama.cpp) or the high-performance EXL2 format (via Exllamav2).
+* **Wide Range of Quantization Options**:
+    * **GGUF (Llama.cpp)**: Choose from various standard quantization levels (e.g., Q2_K, Q3_K_S, Q3_K_M, Q3_K_L, Q4_0, Q4_K_S, Q4_K_M, Q5_0, Q5_K_S, Q5_K_M, Q6_K, Q8_0, F16, F32, and more) to balance model size, speed, and performance.
+    * **EXL2 (Exllamav2)**: Utilize EXL2 quantization for efficient inference, especially on compatible hardware. Choose your desired bits per weight (e.g., 2.0, 2.4, 3.0, 4.0, 4.5, 6.0, 8.0 bpw).
+        * **Note on EXL2**: When performing EXL2 quantization for the first time in a session, it might take a little longer to start. This is normal as it's loading its C++ libraries (Just-In-Time compilation).
+* **Importance Matrix Support (GGUF)**: Advanced users can leverage an importance matrix for more nuanced and potentially higher-quality GGUF quantization.
+* **Large Model Handling (GGUF)**: Option to split very large GGUF models into manageable shards.
+* **Hugging Face Upload**: Seamlessly upload your GGUF/EXL2 models to Hugging Face, with options for public or private repositories.
 
 ---
 
 ## Key Advantages
 
-* **Two-Step Pipeline**: A guided process takes you from merging models directly through to GGUF conversion.
-* **Standalone Operation**: Use Step 1 (Merge) or Step 2 (GGUF Conversion) independently.
-    * Want to just convert an existing model from Hugging Face or your local drive to GGUF? No problem!
+* **Two-Step Pipeline**: A guided process takes you from merging models directly through to GGUF/EXL2 conversion.
+* **Standalone Operation**: Use Step 1 (Merge) or Step 2 (GGUF/EXL2 Conversion) independently.
+    * Want to just convert an existing model from Hugging Face or your local drive to GGUF/EXL2? No problem!
     * Only need to merge models? That's covered too.
 * **User-Friendly Interface**: Built with Gradio for an intuitive web UI.
 * **Real-time Logging**: Monitor the progress of your merge and conversion tasks with live log outputs.
 
 ---
 
+## Requirements for Local Execution
+
+To run FusionQuant effectively using Docker, especially with GPU acceleration and local model storage, please ensure your system meets the following requirements:
+
+1.  **Docker Engine (Linux Recommended)**:
+    * It is highly recommended to use Docker Engine for Linux. You can find installation instructions here: [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
+    * **Note on Docker Desktop (Linux)**: Docker Desktop for Linux does *not* currently support passing NVIDIA GPUs to containers effectively for tasks like EXL2 quantization.
+    * **Note on Docker Desktop (Windows WSL2)**: While Docker Desktop for Windows with WSL2 is an option, performance can be significantly impacted (atrocious), and there are known issues with EXL2 quantization due to Windows folder permissions. Proceed with caution.
+
+2.  **NVIDIA Container Toolkit (for GPU Acceleration)**:
+    * If you plan to use NVIDIA GPUs for acceleration (essential for EXL2, highly recommended for GGUF quantization and Merging), you **must** install the NVIDIA Container Toolkit on your Linux host.
+    * Installation guide: [https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+3.  **Resource Allocation (CPU & Memory)**:
+    * It is crucial to allocate sufficient CPU cores and memory to the Docker container. If the container consumes too much memory, your Linux host might kill the instance (OOM killer).
+    * Use the `--cpu` and `--memory` flags in your `docker run` command (see "How to Run" section).
+
+4.  **Local Folder Permissions**:
+    * If you are mounting local folders to store model weights or outputs (e.g., via the `-v` flag in `docker run`), ensure these folders have the correct permissions for the container to read/write. It's often necessary to grant broad permissions, for example:
+        ```bash
+        chmod 777 /path/to/your/local/weights_folder
+        ```
+    * Replace `/path/to/your/local/weights_folder` with the actual path on your host machine.
+
+5.  **Application Temporary Root (`APP_TEMP_ROOT`)**:
+    * The application uses an environment variable `APP_TEMP_ROOT` to manage temporary files and downloaded models.
+    * Ensure that the `APP_TEMP_ROOT` environment variable passed to the Docker container matches the *target path* of your mounted volume *inside the container*. For example, if you mount `-v /your/host/path:/app/data`, then you should set `-e APP_TEMP_ROOT="/app/data"`. This ensures that downloaded models and intermediate files are stored on your persistent volume.
+
+6.  **EXL2 First-Time Use Note**:
+    * As mentioned in "Main Features", the first EXL2 quantization task in a session might have a slight delay during startup due to JIT compilation of its C++ components.
+
+---
+
 ## How to Run
 
-https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
-
-You can run FusionQuant using Docker:
+You can run FusionQuant using Docker. Ensure you have met the "Requirements for Local Execution" above.
 
 ```bash
-docker run --user=root --name fusionquant -v /YOURVOLUMEPATH:/home/user/app/outputs -it -p 7860:7860 -e HF_TOKEN="YOURTOKEN(OPTIONAL)" --platform=linux/amd64 som1tokmynam/fusionquant:latest
-```
-
-## Explanation of Parameters:
-
-* --user=root: (Temporary, see "To Implement/Fix")
-* --name fusionquant: Assigns a name to your Docker container.
-* -v /YOURVOLUMEPATH:/home/user/app/outputs: Crucial! Mount a volume from your host machine (/YOURVOLUMEPATH) to /home/user/app/outputs in the container. This is where your merged models and GGUF files will be saved, ensuring they persist after the container stops. Replace /YOURVOLUMEPATH with an actual path on your system, e.g., $(pwd)/fusionquant_outputs.
-* -it: Runs the container in interactive mode with a TTY.
-* -p 7860:7860: Maps port 7860 on your host to port 7860 in the container (Gradio UI).
-* -e HF_TOKEN="YOURTOKEN(OPTIONAL)": Optionally, pass your Hugging Face token as an environment variable for uploads. This is recommended for uploading to private repos or your own namespace.
-* --platform=linux/amd64: Specifies the platform, useful for running on machines with different architectures (e.g., ARM-based Macs).
-* som1tokmynam/fusionquant:1.1: The Docker image to run.
-* Once running, open your web browser and navigate to http://localhost:7860.
+docker run \
+    --gpus all \
+    --cpu="<number_of_cpu_cores>" \
+    --memory="<amount_of_memory>" \
+    --user=root \
+    --name fusionquant \
+    -v /YOUR_LOCAL_PATH_FOR_OUTPUTS:/home/user/app/outputs \
+    -e APP_TEMP_ROOT="/home/user/app/outputs" \
+    -e HF_TOKEN="YOUR_HUGGINGFACE_TOKEN_OPTIONAL" \
+    -it \
+    -p 7860:7860 \
+    --platform=linux/amd64 \
+    som1tokmynam/fusionquant:latest```
 
 ---
 
-## To Implement / Fix
+### Explanation of Parameters:
+
+* --gpus all: Essential for GPU acceleration. Passes all available NVIDIA GPUs to the container. Requires NVIDIA Container Toolkit.
+
+* --cpu="<number_of_cpu_cores>": Important for stability. Specify the number of CPU cores the container can use (e.g., --cpu="8").
+
+* --memory="<amount_of_memory>": Important for stability. Specify the maximum amount of memory the container can use (e.g., --memory="16g" for 16GB RAM). Prevents OOM kills.
+
+* --user=root: (Temporary, see "To Implement/Fix") Runs processes inside the container as root.
+
+* --name fusionquant: Assigns a name to your Docker container for easier management.
+
+* -v /YOUR_LOCAL_PATH_FOR_OUTPUTS:/home/user/app/outputs: Crucial for data persistence! Mounts a directory from your host machine (/YOUR_LOCAL_PATH_FOR_OUTPUTS) to /home/user/app/outputs inside the container. This is where your merged models, GGUF/EXL2 files, and downloaded cache will be saved. Replace /YOUR_LOCAL_PATH_FOR_OUTPUTS with an actual path on your system (e.g., $(pwd)/fusionquant_data).
+
+* -e APP_TEMP_ROOT="/home/user/app/outputs": Crucial for model caching and temporary files. Sets the application's root directory for temporary storage to the mounted volume. Ensure this path matches the target of your volume mount.
+
+* -e HF_TOKEN="YOUR_HUGGINGFACE_TOKEN_OPTIONAL": Optionally, pass your Hugging Face token as an environment variable. Required for uploading to private Hugging Face repositories or your own namespace.
+
+* -it: Runs the container in interactive mode with a pseudo-TTY.
+
+* -p 7860:7860: Maps port 7860 on your host to port 7860 in the container, allowing you to access the Gradio UI.
+
+* --platform=linux/amd64: Specifies the platform. Useful if running on machines with different architectures (e.g., ARM-based Macs, though GPU features are primarily for x86 NVIDIA).
+
+* som1tokmynam/fusionquant:latest: The Docker image and tag to run.
+
+# Once running, open your web browser and navigate to http://localhost:7860.
+
+---
+
+### To Implement / Fix
 
 * Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.
+
 * Gradio Share: Add --share option to combined_app.py for easy public sharing of the Gradio interface when needed.
-* ~~CUDA Support: Integrate NVIDIA CUDA support in the Dockerfile and application for GPU-accelerated merging and potential future GPU-accelerated quantization tasks.~~
-* Quantization Tool: Evaluate and potentially switch from llama.cpp's quantization tools to koboldcpp-quantize if it offers advantages.
-* Inference Testing: Add Kobold.cpp (or a similar lightweight inference engine) integration for quick testing of generated GGUF models directly within the UI.
-* Technologies Used
-* Backend: Python, Gradio, Mergekit, Llama.cpp (via subprocess) 
+
+* Quantization Tool Evaluation: Continuously evaluate and potentially integrate other quantization tools if they offer significant advantages.
+
+* Inference Testing: Consider adding a lightweight inference engine integration (e.g., via llama.cpp server or similar) for quick testing of generated GGUF/EXL2 models directly within the UI.
 
 ---
 
-## Acknowledgements and Core Technologies
+### Acknowledgements and Core Technologies
 
 FusionQuant stands on the shoulders of giants. This application integrates and provides an interface for the following outstanding open-source projects:
 
 * Mergekit: Used for all model merging functionalities.
+
 * GitHub: https://github.com/arcee-ai/mergekit
+
 * Llama.cpp: Used for GGUF conversion and quantization.
-* GitHub: https://github.com/ggml-org/llama.cpp
 
-We are incredibly grateful to the developers and maintainers of these projects for their significant contributions to the open-source AI community. Please refer to their respective repositories for more detailed information, licensing, and to support their work.
+* GitHub: https://github.com/ggerganov/llama.cpp (Note: original repo is ggml-org, but ggerganov/llama.cpp is the active one)
 
-## Technologies Used
+* Exllamav2: Used for EXL2 quantization.
+
+* GitHub: https://github.com/turboderp/exllamav2
+
+* We are incredibly grateful to the developers and maintainers of these projects for their significant contributions to the open-source AI community. Please refer to their respective repositories for more detailed information, licensing, and to support their work.
+
+### Technologies Used
 
 * Backend: Python, Gradio
-* Core Engines: Mergekit, Llama.cpp (via subprocess)
-* Frontend: Gradio
+
+* Core Engines: Mergekit, Llama.cpp (via subprocess), Exllamav2 (via subprocess)
+
+* Frontend: Gradio (Web UI)
+
 * Containerization: Docker
+
+
