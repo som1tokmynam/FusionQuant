@@ -1,168 +1,60 @@
-# Use ghcr.io/ggml-org/llama.cpp base image
-FROM ghcr.io/ggerganov/llama.cpp:full-cuda-b4719
+# Step 1: Use your pre-compiled custom base image
+# Replace 'my-precompiled-app-base:v1' with the actual name and tag you used
+FROM som1tokmynam/precompiled-base:1.0
 
-ENV DEBIAN_FRONTEND=noninteractive
-# Install fewer packages, as the new base image (likely based on nvidia/cuda:<ver>-devel)
-# should have git, curl, wget, build-essential, python3, pip, cmake etc.
-# Keeping git-lfs, sudo (for user setup), ffmpeg, libcurl (for some python packages), sed (used later).
-RUN apt-get update -y && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends --fix-missing \
-    git \
-    git-lfs \
-    wget \
-    curl \
-    ca-certificates \
-    libcurl4-openssl-dev \
-    sed \
-    sudo \
-    file \
-    ffmpeg \
-    python3 \
-    python3-pip && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Inherited from base:
+# - User 'builder' (UID 1000)
+# - WORKDIR /home/builder/app (or similar, ensure consistency)
+# - Python environment with all dependencies from the base's requirements.txt
+# - Compiled llama.cpp tools in PATH
+# - Compiled exllamav2 extensions
+# - ENV VARS like CUDA_HOME, PATH, LD_LIBRARY_PATH, PYTHONUNBUFFERED, HF_HUB_ENABLE_HF_TRANSFER,
+#   LLAMA_CPP_DIR, TORCH_CUDA_ARCH_LIST, PYTHONPATH
 
-# Define HOME and APP_DIR early
-ENV HOME=/home/user
-ENV APP_DIR=${HOME}/app
+# Set the working directory for the application (should match what was set in the base for consistency)
+# The base Dockerfile set WORKDIR ${APP_DIR} which is /home/builder/app
+WORKDIR /home/builder/app
 
-# Setup user properly - handle case where UID 1000 might already exist [cite: 3]
-RUN if id 1000 >/dev/null 2>&1; then \
-        echo "UID 1000 already exists, using existing user"; \
-        existing_user=$(id -nu 1000); \
-        if [ "$existing_user" != "user" ]; then \
-            usermod -l user $existing_user 2>/dev/null || echo "Could not rename user"; \
-        fi; \
+# Copy your application files into the working directory
+COPY --chown=builder:builder combined_app.py ./
+COPY --chown=builder:builder gguf_utils.py ./
+COPY --chown=builder:builder mergekit_utils.py ./
+COPY --chown=builder:builder exllamav2_utils.py ./
+COPY --chown=builder:builder groups_merged.txt ./
+COPY examples/ ./examples/
+
+# Ensure groups_merged.txt is in the llama.cpp source directory if your scripts expect it there.
+# LLAMA_CPP_DIR is /home/builder/app/llama.cpp (set in the base image).
+RUN if [ -f "./groups_merged.txt" ]; then \
+        # Check if the target directory exists, create if not (though base should have cloned llama.cpp)
+        mkdir -p "${LLAMA_CPP_DIR}" && \
+        cp "./groups_merged.txt" "${LLAMA_CPP_DIR}/groups_merged.txt"; \
+        echo "Copied groups_merged.txt to ${LLAMA_CPP_DIR} for the application."; \
     else \
-        useradd --create-home --uid 1000 --shell /bin/bash user; \
-    fi && \
-    mkdir -p ${APP_DIR} && \
-    chown -R 1000:1000 ${HOME} && \
-    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Switch to the user (use UID since username might vary)
-USER 1000
-
-# Set WORKDIR; directory should now exist and be owned by 'user'
-WORKDIR ${APP_DIR}
-
-# Use system Python from the base image. Upgrade pip and install common Python tools.
-# The base image ghcr.io/ggml-org/llama.cpp:server-cuda-b5478 should provide Python 3 and pip.
-RUN python3 -m pip install --no-cache-dir --user -U pip setuptools wheel
-
-# Add user's local bin to PATH for executables installed by pip install --user
-ENV PATH="${HOME}/.local/bin:${PATH}"
-
-# Install Python dependencies from the consolidated requirements.txt
-# pip will use the system python and install packages for the current user (1000)
-COPY --chown=user:user requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Create a more flexible constraint file that allows version ranges
-# Switching to root temporarily for this operation as it copies from potentially root-owned source in original Dockerfile context
-# However, requirements.txt is now copied as 'user', so root might not be needed if APP_DIR is user-owned.
-# For safety and consistency with original, using root for cp, then revert.
-USER root
-RUN echo "Creating flexible constraint file from main requirements.txt..." && \
-    cp /home/user/app/requirements.txt /home/user/app/requirements-constraints.txt && \
-    echo "Original requirements.txt (for constraints):" && \
-    cat /home/user/app/requirements-constraints.txt && \
-    echo "--- Processing constraints ---" && \
-    sed -i -E 's/^([^#\s]+)\[[^]]+\]/\1/' /home/user/app/requirements-constraints.txt && \
-    sed -i -E '/^\s*git\+/s/^/# (Constraint-disabled VCS) /' /home/user/app/requirements-constraints.txt && \
-    sed -i -E '/@/s/^/# (Constraint-disabled URL-based) /' /home/user/app/requirements-constraints.txt && \
-    sed -i -E 's/^([^#\s<>=!~]+)==([0-9]+\.[0-9]+(\.[0-9]+([a-zA-Z0-9.]*)?)?)/\1>=\2/' /home/user/app/requirements-constraints.txt && \
-    echo "--- Processed constraint file (/home/user/app/requirements-constraints.txt) ---" && \
-    cat /home/user/app/requirements-constraints.txt && \
-    chown 1000:1000 /home/user/app/requirements-constraints.txt
-USER 1000
-
-# Setup llama.cpp by cloning the repository
-# This is kept for Python scripts and expected directory structure by gguf_utils.py,
-# Base image provides compiled llama.cpp tools.
-USER root
-RUN cd /home/user/app && \
-    git clone https://github.com/ggerganov/llama.cpp.git && \
-    chown -R 1000:1000 /home/user/app/llama.cpp
-USER 1000
-
-# Install llama.cpp's Python requirements
-# These are for the Python scripts within the cloned llama.cpp repo.
-RUN cd /home/user/app/llama.cpp && \
-    if [ -f requirements.txt ]; then \
-        echo "Installing llama.cpp/requirements.txt" && \
-        pip install --no-cache-dir --user -r requirements.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation for llama.cpp/requirements.txt failed, trying without constraints..." && \
-         pip install --no-cache-dir --user -r requirements.txt); \
-    else \
-        echo "llama.cpp/requirements.txt not found, skipping."; \
+        echo "groups_merged.txt not found in application source, not copied to llama.cpp dir."; \
     fi
 
-RUN cd /home/user/app/llama.cpp && \
-    if [ -f requirements/requirements-convert_hf_to_gguf.txt ]; then \
-        echo "Installing llama.cpp/requirements/requirements-convert_hf_to_gguf.txt" && \
-        pip install --no-cache-dir --user -r requirements/requirements-convert_hf_to_gguf.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation for convert_hf_to_gguf.txt failed, trying without constraints..." && \
-         pip install --no-cache-dir --user -r requirements/requirements-convert_hf_to_gguf.txt); \
-    else \
-        echo "llama.cpp/requirements/requirements-convert_hf_to_gguf.txt not found, skipping."; \
-    fi
+# Create output/download directories if your app needs them and they aren't created in the base image.
+# The base image's user 'builder' should own APP_DIR, so this should work.
+RUN mkdir -p ./outputs ./downloads
 
-RUN cd /home/user/app/llama.cpp && \
-    if [ -f requirements/requirements-tool_bench.txt ]; then \
-        echo "Installing llama.cpp/requirements/requirements-tool_bench.txt" && \
-        pip install --no-cache-dir --user -r requirements/requirements-tool_bench.txt --constraint /home/user/app/requirements-constraints.txt || \
-        (echo "Constraint installation for tool_bench.txt failed, trying without constraints..." && \
-         pip install --no-cache-dir --user -r requirements/requirements-tool_bench.txt); \
-    else \
-        echo "llama.cpp/requirements/requirements-tool_bench.txt not found, skipping."; \
-    fi
+# Application-specific environment variables for Gradio, etc.
+# Many common ones are already set in the base image.
+ENV GRADIO_SERVER_NAME="0.0.0.0"
+ENV GRADIO_SERVER_PORT="7860"
+ENV GRADIO_THEME=huggingface          
+ENV GRADIO_ALLOW_FLAGGING=never
+ENV TQDM_POSITION=-1
+ENV TQDM_MININTERVAL=1
+ENV SYSTEM=spaces
+ENV RUN_LOCALLY=1
 
-# Force re-install/upgrade huggingface-hub to the version required by the main application
-RUN echo "Ensuring correct huggingface-hub version for primary application dependencies..." && \
-    pip install --no-cache-dir --user -U "huggingface-hub>=0.24.0,<1.0" && \
-    echo "Final huggingface-hub version check:" && \
-    pip show huggingface-hub
-
-# Copy the rest of your application files
-COPY --chown=user:user . /home/user/app/
-
-# Copy groups_merged.txt if it exists into llama.cpp directory
-RUN if [ -f /home/user/app/groups_merged.txt ]; then \
-        cp /home/user/app/groups_merged.txt /home/user/app/llama.cpp/groups_merged.txt; \
-        echo "Copied groups_merged.txt to llama.cpp directory."; \
-    else \
-        echo "groups_merged.txt not found in app root, not copied."; \
-    fi
-
-# Create directories
-RUN mkdir -p ${HOME}/app/outputs ${HOME}/app/downloads
-
-# Environment variables
-# Removed PYENV_ROOT from PATH. Added ${HOME}/.local/bin for user pip installs.
-# CUDA_HOME, LD_LIBRARY_PATH, and CUDA PATH are kept; the base image might set them,
-# but these are standard paths and should be compatible or correctly appended.
-ENV PYTHONPATH=${HOME}/app \
-    PYTHONUNBUFFERED=1 \
-    CUDA_HOME=/usr/local/cuda \
-    LD_LIBRARY_PATH=/app:/usr/local/cuda/lib64:${LD_LIBRARY_PATH} \
-    PATH=/usr/local/cuda/bin:${HOME}/.local/bin:${PATH} \
-    HF_HUB_ENABLE_HF_TRANSFER=1 \
-    GRADIO_ALLOW_FLAGGING=never \
-    GRADIO_NUM_PORTS=1 \
-    GRADIO_SERVER_NAME="0.0.0.0" \
-    GRADIO_SERVER_PORT="7860" \
-    GRADIO_THEME=huggingface \
-    TQDM_POSITION=-1 \
-    TQDM_MININTERVAL=1 \
-    SYSTEM=spaces \
-    RUN_LOCALLY=1
-
-# Expose Gradio port
+# Expose the Gradio port
 EXPOSE 7860
-# Set the entrypoint to directly execute the python script
-# WORKDIR is /home/user/app, so combined_app.py should be found
+
+# Set the entrypoint to run your main application script
+# This assumes combined_app.py is now in the WORKDIR (/home/builder/app)
 ENTRYPOINT ["python3", "combined_app.py"]
 
-# You can remove the old CMD or set it to empty if no default arguments are needed for combined_app.py
+# Default command (can be empty if ENTRYPOINT is self-contained)
 CMD []

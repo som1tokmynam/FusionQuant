@@ -1,5 +1,6 @@
 import os
-import pathlib
+# import pathlib # Old import
+from pathlib import Path # Corrected import
 import random
 import string
 import tempfile
@@ -7,13 +8,13 @@ import time
 import shutil
 import subprocess
 import threading
-import signal
-from typing import Iterable, List, Tuple, Optional, Callable, Any
+import signal # Not strictly used in the provided snippets but often in subprocess management
+from typing import Iterable, List, Tuple, Optional, Callable, Any, Union
 
 import huggingface_hub
-import torch
+import torch # Used to check torch.cuda.is_available()
 import yaml
-from mergekit.config import MergeConfiguration
+from mergekit.config import MergeConfiguration # Assuming this is how it's imported
 import shlex
 
 class MergekitError(Exception):
@@ -22,7 +23,7 @@ class MergekitError(Exception):
 
 def get_example_yaml_filenames_for_gr_examples(examples_dir_str: str = "examples") -> List[str]:
     """Get list of example YAML filenames for Gradio examples."""
-    examples_path = pathlib.Path(examples_dir_str)
+    examples_path = Path(examples_dir_str) # Now Path is defined
     filenames = []
 
     if examples_path.exists() and examples_path.is_dir():
@@ -32,29 +33,27 @@ def get_example_yaml_filenames_for_gr_examples(examples_dir_str: str = "examples
             except Exception as e:
                 print(f"Error accessing example file {yaml_file}: {e}")
 
-    if not filenames:
+    if not filenames: # If no files found, try to create/ensure default
         if not (examples_path / "default_example.yaml").exists():
             try:
-                create_example_files(examples_dir_str)
-                if (examples_path / "default_example.yaml").exists():
+                create_example_files(examples_dir_str) # Attempt to create them
+                if (examples_path / "default_example.yaml").exists(): # Check again
                     filenames.append("default_example.yaml")
             except Exception as e:
                 print(f"Failed to create default example in get_example_yaml_filenames_for_gr_examples: {e}")
-        elif (examples_path / "default_example.yaml").exists():
+        elif (examples_path / "default_example.yaml").exists(): # If it existed but was the only one
              filenames.append("default_example.yaml")
 
-    if not filenames:
-        filenames.append("default_example.yaml") # Fallback even if creation failed
+    if not filenames: # Absolute fallback
+        filenames.append("default_example.yaml")
     return filenames
 
 def get_example_yaml_content(filename: str, examples_dir_str: str = "examples") -> str:
     """Get the content of a specific example YAML file."""
-    examples_path = pathlib.Path(examples_dir_str)
+    examples_path = Path(examples_dir_str) # Now Path is defined
     yaml_file_path = examples_path / filename
 
-    if filename == "default_example.yaml" or not yaml_file_path.exists():
-        # Fallback to a hardcoded default if the file doesn't exist or if "default_example.yaml" is specifically requested
-        # This ensures that if create_example_files fails or examples are missing, a default is still provided.
+    if filename == "default_example.yaml" and not yaml_file_path.exists(): # Special handling for default if missing
         return """models:
   - model: cognitivecomputations/dolphin-2.6-mistral-7b-dpo-laser
     parameters:
@@ -70,40 +69,15 @@ dtype: float16"""
             return f.read()
     except Exception as e:
         print(f"Error reading example file {yaml_file_path}: {e}")
+        if filename != "default_example.yaml":
+            return get_example_yaml_content("default_example.yaml", examples_dir_str)
         return f"# Error reading {filename}\n# {str(e)}"
 
-def load_examples(examples_dir_str: str = "examples") -> List[List[str]]:
-    """Loads example YAML file contents for Gradio UI."""
-    examples_path = pathlib.Path(examples_dir_str)
-    examples = []
-
-    if examples_path.exists() and examples_path.is_dir():
-        for yaml_file in examples_path.glob("*.yaml"):
-            try:
-                with open(yaml_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                examples.append([content]) # Gradio expects a list of lists for examples
-            except Exception as e:
-                print(f"Error reading example file {yaml_file}: {e}")
-                examples.append([f"# Error reading {yaml_file.name}\n# {str(e)}"])
-
-    if not examples: # Fallback if no examples were loaded
-        default_example = """models:
-  - model: cognitivecomputations/dolphin-2.6-mistral-7b-dpo-laser
-    parameters:
-      weight: 0.5
-  - model: OpenPipe/mistral-ft-optimized-1218
-    parameters:
-      weight: 0.5
-merge_method: linear
-dtype: float16"""
-        examples.append([default_example])
-    return examples
 
 def create_example_files(examples_dir_str: str = "examples"):
     """Create example YAML files if they don't exist."""
-    examples_path = pathlib.Path(examples_dir_str)
-    examples_path.mkdir(exist_ok=True) # Ensure the examples directory exists
+    examples_path = Path(examples_dir_str) # Now Path is defined
+    examples_path.mkdir(exist_ok=True)
 
     examples_configs = {
         "default_example.yaml": """models:
@@ -175,8 +149,7 @@ dtype: bfloat16"""
 def clean_tmp_folders():
     cleaned_count = 0
     try:
-        temp_dir_root = pathlib.Path(tempfile.gettempdir())
-        # Define patterns for directories and files to clean
+        temp_dir_root = Path(tempfile.gettempdir()) # Now Path is defined
         patterns_to_clean = ['mergekit_op_*', 'merge_temp_*', '*.cache', '*.lora_cache']
 
         for pattern in patterns_to_clean:
@@ -188,7 +161,7 @@ def clean_tmp_folders():
                         cleaned_count += 1
                     except Exception as e:
                         print(f"Failed to remove {item}: {e}")
-                elif item.is_file() and (pattern.endswith(".cache") or pattern.endswith(".lora_cache")): # Ensure only specified file patterns are deleted
+                elif item.is_file() and (pattern.endswith(".cache") or pattern.endswith(".lora_cache")):
                     try:
                         print(f"Cleaning temporary file: {item}")
                         item.unlink()
@@ -199,45 +172,50 @@ def clean_tmp_folders():
         print(f"Error during cleanup of temp folders: {e}")
     return cleaned_count
 
-def _run_command_with_logging(cmd_list: List[str], cwd: str, env: Optional[dict], log_fn: Callable, timeout: Optional[int] = 3600):
+def _run_command_with_logging(
+    cmd_list: List[str],
+    cwd: Union[str, Path], # Path is now defined
+    env: Optional[dict],
+    log_fn: Callable[[str, str], None],
+    timeout: Optional[int] = 3600
+):
     log_fn(f"Running command: {' '.join(cmd_list)} in {cwd}", "INFO")
     try:
         process = subprocess.Popen(
-            cmd_list, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, universal_newlines=True, errors='replace' # Added errors='replace'
+            cmd_list, cwd=str(cwd), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, universal_newlines=True, errors='replace'
         )
 
-        # Thread to read output without blocking
         def read_output():
             try:
-                for line in iter(process.stdout.readline, ''): # type: ignore
-                    if line is not None: # Ensure line is not None before processing
-                        log_fn(line.rstrip('\n\r')) # Log message without extra newlines
-                    if process.poll() is not None: # Process finished
+                for line in iter(process.stdout.readline, ''):
+                    if line is not None:
+                        log_fn(line.rstrip('\n\r'), "INFO")
+                    if process.poll() is not None:
                         break
             except Exception as e:
                 log_fn(f"Error reading process output: {e}", "ERROR")
             finally:
-                if process.stdout: # type: ignore
-                    process.stdout.close() # type: ignore
+                if process.stdout:
+                    process.stdout.close()
 
         output_thread = threading.Thread(target=read_output)
-        output_thread.daemon = True # Allow main program to exit even if thread is running
+        output_thread.daemon = True
         output_thread.start()
 
         try:
-            process.wait(timeout=timeout) # Wait for the process to complete or timeout
-        except subprocess.TimeoutExpired: # This will only be raised if timeout is not None
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
             log_fn(f"Command timed out after {timeout} seconds: {' '.join(cmd_list)}", "ERROR")
-            process.terminate() # Try to terminate gracefully
+            process.terminate()
             try:
-                process.wait(timeout=10) # Wait a bit for termination
+                process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                process.kill() # Force kill if termination fails
-                process.wait() # Ensure process is reaped
+                process.kill()
+                process.wait()
             raise MergekitError(f"Command timed out: {' '.join(cmd_list)}")
 
-        output_thread.join(timeout=10) # Ensure output thread finishes and logs all output
+        output_thread.join(timeout=10)
 
         if process.returncode != 0:
             log_fn(f"Command failed with exit code {process.returncode}: {' '.join(cmd_list)}", "ERROR")
@@ -247,120 +225,116 @@ def _run_command_with_logging(cmd_list: List[str], cwd: str, env: Optional[dict]
 
     except Exception as e:
         log_fn(f"Exception during command execution '{' '.join(cmd_list)}': {str(e)}", "ERROR")
-        if not isinstance(e, MergekitError): # Don't wrap MergekitError in another MergekitError
+        if not isinstance(e, MergekitError):
             raise MergekitError(f"Execution failed for '{' '.join(cmd_list)}': {str(e)}")
         else:
-            raise # Re-raise the original MergekitError
+            raise
 
 def _prefetch_models_with_logging(
-    merge_config: MergeConfiguration, hf_home: str, lora_merge_cache: str, log_fn: Callable,
-    hf_token: Optional[str] = None, trust_remote_code_prefetch: bool = False
+    merge_config: MergeConfiguration,
+    hf_home: str,
+    lora_merge_cache: str,
+    log_fn: Callable[[str,str], None],
+    #hf_token: Optional[str] = None,
+    #trust_remote_code_prefetch: bool = False
 ):
-    log_fn(f"Prefetching models. HF_HOME: {hf_home}, Lora Cache: {lora_merge_cache}", "INFO")
+    log_fn(f"Prefetching models. Using HF Cache: {hf_home}, Lora Cache: {lora_merge_cache}", "INFO")
+    Path(hf_home).mkdir(parents=True, exist_ok=True) # Path is defined
+    Path(lora_merge_cache).mkdir(parents=True, exist_ok=True) # Path is defined
+
     for i, model_source_info in enumerate(merge_config.referenced_models()):
         log_fn(f"Prefetching model {i+1}: {model_source_info.model}", "INFO")
         try:
             start_time = time.time()
-            # Get merged model reference (handles LoRAs etc.)
             model_ref = model_source_info.merged(
                 cache_dir=lora_merge_cache,
-                huggingface_token=hf_token,
-                trust_remote_code=trust_remote_code_prefetch
+                # huggingface_token=hf_token, not working
+                #trust_remote_code=trust_remote_code_prefetch
             )
-            # Now download/resolve the actual model files for this reference
-            log_fn(f"Getting local path for {model_ref.model}", "DEBUG")
+            log_fn(f"Getting local path for {model_ref.model} using main HF cache: {hf_home}", "DEBUG")
             local_model_path = model_ref.local_path(
-                cache_dir=hf_home, # This is where the main model weights are stored
-                huggingface_token=hf_token,
-                trust_remote_code=trust_remote_code_prefetch
+                cache_dir=hf_home,
+                # huggingface_token=hf_token, not working
+                #trust_remote_code=trust_remote_code_prefetch
             )
             elapsed_time = time.time() - start_time
             log_fn(f"Model {model_source_info.model} prefetched in {elapsed_time:.2f}s -> {local_model_path}", "INFO")
         except Exception as e:
             log_fn(f"Error prefetching model {model_source_info.model}: {str(e)}", "ERROR")
-            # Optionally, re-raise or handle to stop the whole process if a prefetch fails
-            continue # Continue to prefetch other models
+            continue
 
 def _run_merge_operation(
-    current_has_gpu: bool, actual_cli_for_mergekit: str, merged_path_workdir: str,
-    output_subdir_name: str, # This is the 'output' arg to mergekit-yaml (e.g. "merged_model_output")
-    operational_temp_dir_str: str, # This is the root of our temp working area (e.g. /tmp/mergekit_op_XXXX)
-    log_fn: Callable,
-    low_cpu_mem: bool = True, # Defaulted from previous logic
-    read_to_gpu: bool = True, # Defaulted from previous logic, seems unused directly
+    current_has_gpu: bool,
+    actual_cli_for_mergekit: str,
+    merged_path_workdir: str,
+    output_subdir_name: str,
+    operational_temp_dir_str: str,
+    hf_home_for_this_op: str,
+    log_fn: Callable[[str,str], None],
+    low_cpu_mem: bool = True,
     trust_remote_code_config: bool = False
 ):
     log_fn("Setting up merge environment", "INFO")
     tmp_env = os.environ.copy()
+    abs_operational_temp_dir = str(Path(operational_temp_dir_str).resolve()) # Path is defined
 
-    # Ensure paths are absolute and correctly used for cache locations
-    abs_operational_temp_dir = str(pathlib.Path(operational_temp_dir_str).resolve())
-    tmp_env["HF_HOME"] = str(pathlib.Path(abs_operational_temp_dir) / ".cache" / "hf")
-    tmp_env["TMPDIR"] = str(pathlib.Path(abs_operational_temp_dir) / ".cache" / "tmp") # For general temp files by underlying libs
-    tmp_env["TRANSFORMERS_CACHE"] = str(pathlib.Path(abs_operational_temp_dir) / ".cache" / "transformers")
-    tmp_env["HF_HUB_CACHE"] = tmp_env["HF_HOME"] # Often interchangeable with HF_HOME for hub downloads
-    tmp_env["PYTHONUNBUFFERED"] = "1" # For immediate log output
+    tmp_env["HF_HOME"] = hf_home_for_this_op
+    tmp_env["HF_HUB_CACHE"] = hf_home_for_this_op
 
-    # Create cache directories
+    tmp_env["TMPDIR"] = str(Path(abs_operational_temp_dir) / ".cache" / "tmp") # Path is defined
+    tmp_env["TRANSFORMERS_CACHE"] = str(Path(abs_operational_temp_dir) / ".cache" / "transformers") # Path is defined
+    tmp_env["PYTHONUNBUFFERED"] = "1"
+
     os.makedirs(tmp_env["HF_HOME"], exist_ok=True)
     os.makedirs(tmp_env["TMPDIR"], exist_ok=True)
     os.makedirs(tmp_env["TRANSFORMERS_CACHE"], exist_ok=True)
 
-    # Lora merge cache argument for the CLI
-    lora_cache_arg = str(pathlib.Path(abs_operational_temp_dir) / ".cache" / "lora_merge_cache")
-    os.makedirs(lora_cache_arg, exist_ok=True)
+    lora_cache_arg_path = str(Path(abs_operational_temp_dir) / ".cache" / "lora_merge_cache") # Path is defined
+    os.makedirs(lora_cache_arg_path, exist_ok=True)
 
-    # Construct the command list properly using shlex for robustness
     full_cli_list = shlex.split(actual_cli_for_mergekit)
-
-    # Add --lora-merge-cache if not present
     if "--lora-merge-cache" not in full_cli_list:
-        full_cli_list.extend(["--lora-merge-cache", lora_cache_arg])
-
+        full_cli_list.extend(["--lora-merge-cache", lora_cache_arg_path])
     if trust_remote_code_config and "--trust-remote-code" not in full_cli_list:
         full_cli_list.append("--trust-remote-code")
-
     if current_has_gpu:
         log_fn(f"Configuring for GPU merge", "INFO")
-        if "--cuda" not in full_cli_list:
-            full_cli_list.append("--cuda")
-        if low_cpu_mem and "--low-cpu-memory" not in full_cli_list: # Recommended for GPU merges
-             full_cli_list.append("--low-cpu-memory")
-    else: # CPU merge
+        if "--cuda" not in full_cli_list: full_cli_list.append("--cuda")
+        if low_cpu_mem and "--low-cpu-memory" not in full_cli_list: full_cli_list.append("--low-cpu-memory")
+    else:
         log_fn(f"Configuring for CPU merge", "INFO")
-        # --lazy-unpickle can be useful for CPU merges with large models
-        if "--lazy-unpickle" not in full_cli_list:
-            full_cli_list.append("--lazy-unpickle")
-            
-    log_fn(f"Final merge command list: {full_cli_list}", "DEBUG")
+        if "--lazy-unpickle" not in full_cli_list: full_cli_list.append("--lazy-unpickle")
 
+    log_fn(f"Final merge command list: {full_cli_list}", "DEBUG")
     try:
-        _run_command_with_logging(
-            full_cli_list,
-            cwd=str(merged_path_workdir), # Execute in the directory containing config.yaml
-            env=tmp_env,
-            log_fn=log_fn,
-            timeout=None # Potentially long running, consider a very long timeout or None
-        )
+        _run_command_with_logging(full_cli_list, cwd=str(merged_path_workdir), env=tmp_env, log_fn=log_fn, timeout=None)
     except MergekitError as e:
-        log_fn(f"Merge command failed: {str(e)}", "ERROR")
-        raise # Re-raise to be caught by the caller
-    except Exception as e: # Catch any other unexpected errors
+        log_fn(f"Merge command failed: {str(e)}", "ERROR"); raise
+    except Exception as e:
         log_fn(f"Unexpected error during merge operation setup: {str(e)}", "ERROR")
         raise MergekitError(f"Merge operation setup failed: {str(e)}")
 
 
 def process_model_merge(
-    yaml_config_str: str, hf_token_merge: Optional[str], repo_name: Optional[str],
-    local_path_merge_output: Optional[str], community_hf_token_val: Optional[str], use_gpu_bool: bool,
-    temp_dir_base: str, # Fallback if MERGEKIT_JOB_TEMP_DIR is not set
-    log_fn: Callable, trust_remote_code_config: bool = False,
-    trust_remote_code_model_ops: bool = False # For model loading/prefetching
+    yaml_config_str: str,
+    hf_token_merge: Optional[str],
+    repo_name: Optional[str],
+    local_path_merge_output: Optional[str],
+    community_hf_token_val: Optional[str],
+    use_gpu_bool: bool,
+    temp_dir_base: str,
+    log_fn: Callable[[str,str], None],
+    # MODIFIED: Moved hf_repo_private_for_merge to be with other default arguments
+    hf_repo_private_for_merge: bool = False,
+    trust_remote_code_config: bool = False,
+    trust_remote_code_model_ops: bool = False,
+    keep_hf_cache: bool = False,
+    persistent_hf_cache_path: Optional[str] = None
 ) -> Tuple[Optional[Iterable[str]], Optional[str], Optional[str]]:
     log_fn("=== Starting process_model_merge ===", "INFO")
     final_local_path_str: Optional[str] = None
     error_message_str: Optional[str] = None
-    uploaded_files_list: Optional[Iterable[str]] = None # Not currently populated, but kept for signature
+    uploaded_files_list: Optional[Iterable[str]] = None
 
     try:
         current_has_gpu = torch.cuda.is_available() if use_gpu_bool else False
@@ -379,214 +353,168 @@ def process_model_merge(
             log_fn(f"Invalid YAML configuration: {e}", "ERROR")
             return None, None, f"Invalid YAML: {str(e)}"
 
-        # Determine the effective temporary directory base
         env_temp_dir_override = os.environ.get("MERGEKIT_JOB_TEMP_DIR")
         effective_temp_dir_for_ops: str
-
         if env_temp_dir_override:
-            log_fn(f"Using temp directory base from environment variable MERGEKIT_JOB_TEMP_DIR: {env_temp_dir_override}", "INFO")
             effective_temp_dir_for_ops = env_temp_dir_override
-            try:
-                pathlib.Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True)
+            try: Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True) # Path is defined
             except Exception as e_mkdir:
-                log_fn(f"Failed to create directory from MERGEKIT_JOB_TEMP_DIR ('{effective_temp_dir_for_ops}'): {e_mkdir}. Falling back.", "ERROR")
-                # Fallback to temp_dir_base if creation fails
+                log_fn(f"Failed to create dir from MERGEKIT_JOB_TEMP_DIR ('{effective_temp_dir_for_ops}'): {e_mkdir}. Falling back.", "ERROR")
                 effective_temp_dir_for_ops = temp_dir_base
                 log_fn(f"Fallen back to using temp_dir_base from argument: {effective_temp_dir_for_ops}", "INFO")
-                # Ensure fallback directory exists
-                pathlib.Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True)
+                Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True) # Path is defined
         else:
             effective_temp_dir_for_ops = temp_dir_base
             log_fn(f"Using temp directory base from function argument: {effective_temp_dir_for_ops}", "INFO")
-            # Ensure the argument-provided directory exists (it should be by combined_app.py, but good practice)
-            pathlib.Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True)
+            Path(effective_temp_dir_for_ops).mkdir(parents=True, exist_ok=True) # Path is defined
 
-
-        # Determine effective Hugging Face token
         effective_hf_token = hf_token_merge
-        if not effective_hf_token and repo_name and repo_name.startswith("mergekit-community/"):
-            effective_hf_token = community_hf_token_val
-        
-        log_fn(f"Creating operational temp directory within: {effective_temp_dir_for_ops}", "INFO")
-        with tempfile.TemporaryDirectory(prefix="mergekit_op_", dir=effective_temp_dir_for_ops) as operational_temp_dir_str:
-            log_fn(f"Operational temp directory created: {operational_temp_dir_str}", "DEBUG")
-            operational_temp_dir = pathlib.Path(operational_temp_dir_str)
 
-            # Directory where config.yaml will be placed and mergekit-yaml will be run from
+        with tempfile.TemporaryDirectory(prefix="mergekit_op_", dir=effective_temp_dir_for_ops) as operational_temp_dir_str:
+            operational_temp_dir = Path(operational_temp_dir_str) # Path is defined
+            log_fn(f"Operational temp directory for non-HF cache items: {operational_temp_dir}", "DEBUG")
+
+            hf_home_for_operation: str
+            if keep_hf_cache and persistent_hf_cache_path and persistent_hf_cache_path.strip():
+                persistent_cache_path_obj = Path(persistent_hf_cache_path.strip()).resolve() # Path is defined
+                persistent_cache_path_obj.mkdir(parents=True, exist_ok=True)
+                hf_home_for_operation = str(persistent_cache_path_obj)
+                log_fn(f"Using persistent Hugging Face cache for merge operations: {hf_home_for_operation}", "INFO")
+            else:
+                temp_hf_home_path = operational_temp_dir / ".cache" / "hf_temp_merge_cache"
+                hf_home_for_operation = str(temp_hf_home_path)
+                log_fn(f"Using temporary Hugging Face cache for merge (will be deleted with op temp dir): {hf_home_for_operation}", "INFO")
+
             merge_process_workdir = operational_temp_dir / "merge_process_work"
             merge_process_workdir.mkdir(parents=True, exist_ok=True)
-
             config_yaml_path = merge_process_workdir / "config.yaml"
             config_yaml_path.write_text(yaml_config_str)
             log_fn(f"Configuration saved to: {config_yaml_path}", "INFO")
 
-            # Name of the subdirectory mergekit will create *inside* merge_process_workdir
-            merge_output_subdir_name = "merged_model_output" 
-            # This is the path mergekit-yaml will write to, relative to merge_process_workdir
+            merge_output_subdir_name = "merged_model_output"
             mergekit_internal_output_dir = merge_process_workdir / merge_output_subdir_name
-
-            # Construct base mergekit command string
-            # mergekit-yaml <config_path> <output_path> [options]
-            # Paths are relative to the CWD of the command (merge_process_workdir)
             base_mergekit_command_str = f"mergekit-yaml {config_yaml_path.name} {merge_output_subdir_name} --copy-tokenizer"
+            if "--allow-crimes" not in base_mergekit_command_str: base_mergekit_command_str += " --allow-crimes"
 
-            if "--allow-crimes" not in base_mergekit_command_str: # Often needed
-                 base_mergekit_command_str += " --allow-crimes"
-            
-            # Model Prefetching (uses caches within operational_temp_dir)
             log_fn("Starting model prefetch...", "INFO")
             try:
                 _prefetch_models_with_logging(
                     merge_config,
-                    hf_home=str(operational_temp_dir / ".cache" / "hf"),
+                    hf_home=hf_home_for_operation,
                     lora_merge_cache=str(operational_temp_dir / ".cache" / "lora_merge_cache"),
                     log_fn=log_fn,
-                    hf_token=effective_hf_token,
-                    trust_remote_code_prefetch=trust_remote_code_model_ops
+                    # hf_token=effective_hf_token,
+                    # trust_remote_code_prefetch=trust_remote_code_model_ops
                 )
                 log_fn("Model prefetch completed.", "INFO")
-            except Exception as e:
-                log_fn(f"Error during model prefetch: {str(e)}", "WARNING")
-                # Depending on severity, might want to `return None, None, str(e)` here
+            except Exception as e_prefetch:
+                log_fn(f"Error during model prefetch: {str(e_prefetch)}", "WARNING")
 
-            # Run Merge Operation
             log_fn("Starting merge operation...", "INFO")
             try:
                 _run_merge_operation(
                     current_has_gpu, base_mergekit_command_str, str(merge_process_workdir),
-                    merge_output_subdir_name, str(operational_temp_dir), log_fn,
+                    merge_output_subdir_name,
+                    str(operational_temp_dir),
+                    hf_home_for_this_op=hf_home_for_operation,
+                    log_fn=log_fn,
                     trust_remote_code_config=trust_remote_code_config
                 )
                 log_fn("Merge operation completed successfully.", "INFO")
-            except MergekitError as e:
-                log_fn(f"Merge operation failed: {str(e)}", "ERROR")
-                return None, None, f"Merge operation failed: {str(e)}"
-            except Exception as e: # Catch any other unexpected errors from _run_merge_operation
-                log_fn(f"Unexpected failure during merge operation: {str(e)}", "ERROR")
-                return None, None, f"Unexpected merge failure: {str(e)}"
+            except MergekitError as e_merge_op:
+                log_fn(f"Merge operation failed: {str(e_merge_op)}", "ERROR")
+                return None, None, f"Merge operation failed: {str(e_merge_op)}"
+            except Exception as e_merge_unexpected:
+                log_fn(f"Unexpected failure during merge operation: {str(e_merge_unexpected)}", "ERROR")
+                return None, None, f"Unexpected merge failure: {str(e_merge_unexpected)}"
 
             if not mergekit_internal_output_dir.exists() or not mergekit_internal_output_dir.is_dir():
                 msg = f"Mergekit output directory not found after merge: {mergekit_internal_output_dir}"
-                log_fn(msg, "ERROR")
-                return None, None, msg
-            
+                log_fn(msg, "ERROR"); return None, None, msg
             log_fn(f"Mergekit output found at: {mergekit_internal_output_dir}", "INFO")
 
-            # Handling final output path (copy from temp mergekit output)
             if local_path_merge_output:
-                target_local_dir = pathlib.Path(local_path_merge_output)
+                target_local_dir = Path(local_path_merge_output) # Path is defined
                 log_fn(f"Copying merged model from {mergekit_internal_output_dir} to final local path: {target_local_dir}", "INFO")
                 try:
-                    target_local_dir.parent.mkdir(parents=True, exist_ok=True) # Ensure parent of target exists
+                    target_local_dir.parent.mkdir(parents=True, exist_ok=True)
                     if target_local_dir.exists():
                         log_fn(f"Target local path {target_local_dir} exists, removing before copy.", "WARNING")
                         shutil.rmtree(target_local_dir)
-                    shutil.copytree(mergekit_internal_output_dir, target_local_dir, dirs_exist_ok=False) # copy content
+                    shutil.copytree(mergekit_internal_output_dir, target_local_dir, dirs_exist_ok=False)
                     log_fn(f"Model successfully copied to: {target_local_dir}", "INFO")
                     final_local_path_str = str(target_local_dir)
-                except Exception as e:
-                    log_fn(f"Error copying to local path {target_local_dir}: {e}", "ERROR")
-                    return None, None, f"Error copying to local path: {str(e)}" # Critical error
+                except Exception as e_copy_local:
+                    log_fn(f"Error copying to local path {target_local_dir}: {e_copy_local}", "ERROR")
+                    return None, None, f"Error copying to local path: {str(e_copy_local)}"
             else:
-                # If no specific local_path_merge_output, the "final" path is the one in the temp operational dir
-                # This might be used if the model is only for direct GGUF conversion passthrough
-                log_fn("No final local save path specified. Merged model exists in temp.", "INFO")
-                final_local_path_str = str(mergekit_internal_output_dir) # Pass this path to GGUF step
+                log_fn("No final local save path specified by user. Merged model remains in temp location if used for passthrough.", "INFO")
+                final_local_path_str = str(mergekit_internal_output_dir)
 
-            # Hugging Face Upload
             upload_to_hf = bool(repo_name)
-            repo_url_str: Optional[str] = None
             actual_repo_name_used_for_upload = repo_name
-
             if upload_to_hf:
                 log_fn(f"Preparing to upload to Hugging Face repo: {repo_name}", "INFO")
                 if not effective_hf_token:
-                    if repo_name.startswith("mergekit-community/") and community_hf_token_val: # type: ignore
+                    if repo_name and repo_name.startswith("mergekit-community/") and community_hf_token_val:
                         effective_hf_token = community_hf_token_val
                         log_fn(f"Using mergekit-community token for upload to {repo_name}.", "INFO")
                     else:
                         msg = f"Cannot upload to '{repo_name}'. No Hugging Face token provided."
-                        log_fn(msg, "ERROR")
-                        error_message_str = msg # Report error but continue if local save was done
-                        upload_to_hf = False # Prevent upload attempt
+                        log_fn(msg, "ERROR"); error_message_str = msg; upload_to_hf = False
 
-                if upload_to_hf and effective_hf_token: # Re-check after token logic
+                if upload_to_hf and effective_hf_token:
                     try:
                         hf_api_for_upload = huggingface_hub.HfApi(token=effective_hf_token)
-                        # Ensure repo_name includes namespace if not provided
                         if actual_repo_name_used_for_upload and '/' not in actual_repo_name_used_for_upload:
                             try:
-                                user_info = hf_api_for_upload.whoami() # Requires token with read access
-                                user_namespace = user_info['name']
+                                user_info = hf_api_for_upload.whoami(); user_namespace = user_info['name']
                                 actual_repo_name_used_for_upload = f"{user_namespace}/{actual_repo_name_used_for_upload}"
                                 log_fn(f"Repo name updated with user namespace: {actual_repo_name_used_for_upload}", "INFO")
                             except Exception as e_whoami:
-                                log_fn(f"Could not determine user namespace for repo name ('{actual_repo_name_used_for_upload}'): {e_whoami}. Upload may fail or use unexpected namespace.", "WARNING")
-                        
+                                log_fn(f"Could not determine user namespace for repo name: {e_whoami}.", "WARNING")
+
                         repo_url_obj = hf_api_for_upload.create_repo(
                             repo_id=actual_repo_name_used_for_upload, # type: ignore
                             exist_ok=True,
-                            private=False # Assuming public for mergekit-community or general merges, could be a param
+                            private=hf_repo_private_for_merge
                         )
                         repo_url_str = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
                         log_fn(f"HF repo ready for upload: {repo_url_str}", "INFO")
 
                         log_fn(f"Uploading model from {mergekit_internal_output_dir} to {actual_repo_name_used_for_upload}...", "INFO")
-                        # Upload the content of mergekit_internal_output_dir
                         hf_api_for_upload.upload_folder(
                             repo_id=actual_repo_name_used_for_upload, # type: ignore
                             folder_path=str(mergekit_internal_output_dir),
-                            commit_message=f"Add merged model: {yaml_config_str[:100]}..." # Brief commit message
+                            commit_message=f"Add merged model via mergekit: {Path(config_yaml_path).name}" # Path is defined
                         )
                         log_fn(f"Successfully uploaded to HF repo: {repo_url_str}", "INFO")
-                        # uploaded_files_list could be populated here if needed, e.g. by listing files in repo_url_str
-
                     except Exception as e_hf_upload:
                         upload_err_msg = f"Error during Hugging Face upload to {actual_repo_name_used_for_upload}: {str(e_hf_upload)}"
                         log_fn(upload_err_msg, "ERROR")
-                        # Append to existing error_message_str if any, or set it
-                        error_message_str = f"{error_message_str}\nAlso, HF Upload Error: {upload_err_msg}" if error_message_str else upload_err_msg
+                        error_message_str = f"{error_message_str or ''}\nHF Upload Error: {upload_err_msg}".strip()
 
-        # End of `with tempfile.TemporaryDirectory` block, operational_temp_dir_str is cleaned up
         log_fn("=== process_model_merge completed ===", "INFO")
         return uploaded_files_list, final_local_path_str, error_message_str
 
-    except Exception as e_global: # Catch-all for unexpected issues in the main try block
+    except Exception as e_global:
         log_fn(f"=== process_model_merge failed with unhandled exception: {str(e_global)} ===", "ERROR")
         import traceback
         log_fn(f"Traceback: {traceback.format_exc()}", "ERROR")
         return None, None, f"Unexpected error in process_model_merge: {str(e_global)}"
 
 if __name__ == "__main__":
-    # Example usage for testing (not part of the main application flow)
     print("mergekit_utils.py loaded. Standalone test block.")
-
-    # To test the environment variable functionality:
-    # 1. Set MERGEKIT_JOB_TEMP_DIR: export MERGEKIT_JOB_TEMP_DIR=/tmp/my_custom_merge_temp
-    # 2. Run this script: python mergekit_utils.py
-    # 3. Check if /tmp/my_custom_merge_temp/mergekit_op_* directories are created and used.
-
-    # Mock log_fn for testing
-    def test_logger(message, level="INFO"):
-        print(f"[{level}] {message}")
-
-    # Example YAML (replace with a valid simple one for testing if needed)
+    def test_logger(message, level="INFO"): print(f"[{level}] {message}")
     test_yaml = """
 models:
-  - model: cognitivecomputations/dolphin-2.6-mistral-7b-dpo-laser 
-    # Using a small, fast-downloading model might be better for quick tests if available
-    # For actual merge, ensure this model is accessible
-    parameters:
-      weight: 1.0
+  - model: cognitivecomputations/dolphin-2.6-mistral-7b-dpo-laser
+    parameters: {weight: 1.0}
 merge_method: passthrough
-dtype: float16
-"""
-    # Create a dummy temp_dir_base for fallback testing
-    fallback_temp_base = pathlib.Path("./test_fallback_temp_base")
+dtype: float16"""
+    fallback_temp_base = Path("./test_fallback_temp_base") # Path is defined
     fallback_temp_base.mkdir(parents=True, exist_ok=True)
-
     print(f"Testing process_model_merge. Fallback base: {fallback_temp_base.resolve()}")
-    # Minimal call to see if temp dir logic works (will likely fail on actual merge without setup)
     try:
         _, out_path, err = process_model_merge(
             yaml_config_str=test_yaml,
@@ -596,19 +524,14 @@ dtype: float16
             community_hf_token_val=None,
             use_gpu_bool=False,
             temp_dir_base=str(fallback_temp_base.resolve()),
-            log_fn=test_logger
+            log_fn=test_logger,
+            hf_repo_private_for_merge=False, # Testing the new param in correct order
+            keep_hf_cache=True,
+            persistent_hf_cache_path=str(fallback_temp_base / "persistent_hf_cache_test")
         )
-        if err:
-            print(f"Test run resulted in error: {err}")
-        if out_path:
-            print(f"Test run output path: {out_path}")
-        if not err and not out_path:
-             print("Test run completed, but no output path or error reported (may indicate early exit or prefetch/merge tool failure).")
-
-    except Exception as e:
-        print(f"Test run threw exception: {e}")
+        if err: print(f"Test run resulted in error: {err}")
+        if out_path: print(f"Test run output path: {out_path}")
+        if not err and not out_path: print("Test run completed, but no output path or error reported.")
+    except Exception as e: print(f"Test run threw exception: {e}")
     finally:
-        # Clean up dummy fallback base if it was used
-        # shutil.rmtree(fallback_temp_base, ignore_errors=True)
-        print(f"Test cleanup: If you used MERGEKIT_JOB_TEMP_DIR, check that directory. Fallback dir was {fallback_temp_base.resolve()}")
-        print("If merge ran, temp mergekit_op_* folders should be inside the effective_temp_dir_for_ops.")
+        print(f"Test cleanup: Check {fallback_temp_base.resolve()} for outputs and persistent cache.")

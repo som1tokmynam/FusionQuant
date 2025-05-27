@@ -1,0 +1,87 @@
+# Step 1: Start with an official NVIDIA CUDA Development Image
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Step 2: Install essential build tools, Python, pip, git, cmake, etc.
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends --fix-missing \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    dos2unix \
+    ffmpeg \
+    file \
+    git \
+    git-lfs \
+    gnupg \
+    libcurl4-openssl-dev \
+    ninja-build \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3.10-dev \
+    sed \
+    software-properties-common \
+    sudo \
+    wget && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set up a non-root user
+ENV APP_USER=builder
+ENV HOME_DIR=/home/${APP_USER}
+ENV APP_DIR=${HOME_DIR}/app
+ENV EXLLAMAV2_REPO_DIR=${APP_DIR}/exllamav2_repo
+ENV LLAMA_CPP_DIR=${APP_DIR}/llama.cpp
+
+RUN useradd --create-home --uid 1000 --shell /bin/bash ${APP_USER} && \
+    mkdir -p ${APP_DIR} ${EXLLAMAV2_REPO_DIR} ${LLAMA_CPP_DIR} && \
+    chown -R ${APP_USER}:${APP_USER} ${HOME_DIR} && \
+    echo "${APP_USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER ${APP_USER}
+WORKDIR ${APP_DIR}
+
+RUN python3 -m pip install --no-cache-dir --user -U pip setuptools wheel
+ENV PATH="${HOME_DIR}/.local/bin:${CUDA_HOME}/bin:${PATH}"
+ENV PYTHONUSERBASE=${HOME_DIR}/.local
+ENV PYTHONPATH="${PYTHONUSERBASE}/lib/python3.10/site-packages:${PYTHONPATH}"
+
+# Clone repositories
+RUN git clone https://github.com/ggerganov/llama.cpp.git ${LLAMA_CPP_DIR} && \
+    sudo chown -R ${APP_USER}:${APP_USER} ${LLAMA_CPP_DIR}
+RUN git clone https://github.com/turboderp-org/exllamav2.git ${EXLLAMAV2_REPO_DIR} && \
+    sudo chown -R ${APP_USER}:${APP_USER} ${EXLLAMAV2_REPO_DIR}
+
+# --- MODIFICATION START: Patch exllamav2/conversion/measure.py ---
+USER root
+RUN sed -i "s/import os/import os\nimport shutil/" "${EXLLAMAV2_REPO_DIR}/exllamav2/conversion/measure.py" && \
+    sed -i "s/os.replace(temp_filename, states_filename)/shutil.move(temp_filename, states_filename)/" "${EXLLAMAV2_REPO_DIR}/exllamav2/conversion/measure.py" && \
+    echo "Patched measure.py to use shutil.move instead of os.replace"
+USER ${APP_USER}
+# --- MODIFICATION END ---
+
+# Install Python dependencies from requirements.txt
+COPY --chown=${APP_USER}:${APP_USER} requirements.txt .
+ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0"
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Copy the one-time compilation script
+USER root
+COPY start-compile-all.sh /usr/local/bin/start-compile-all.sh
+RUN dos2unix /usr/local/bin/start-compile-all.sh && \
+    chmod +x /usr/local/bin/start-compile-all.sh
+USER ${APP_USER}
+
+# Environment Variables
+ENV CUDA_HOME=/usr/local/cuda
+ENV PYTHONUNBUFFERED=1
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+
+USER root
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+USER ${APP_USER}
+
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/start-compile-all.sh"]
+CMD []
