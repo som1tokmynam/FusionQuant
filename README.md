@@ -118,7 +118,8 @@ docker run \
     -it \
     -p 7860:7860 \
     --platform=linux/amd64 \
-    som1tokmynam/fusionquant:latest```
+    som1tokmynam/fusionquant:latest
+```
 
 ---
 
