@@ -132,6 +132,48 @@ docker run \
 
 ---
 
+> :warning: ## Critical Warning: `APP_TEMP_ROOT` Directory Behavior
+>
+> **EXTREME CAUTION IS ADVISED** when specifying the directory for `APP_TEMP_ROOT`.
+>
+> **Everything inside the designated `APP_TEMP_ROOT` directory WILL BE PERMANENTLY DELETED before and after each job completion.**
+>
+> ### Example of Incorrect Usage (Data Loss Risk!):
+>
+> If you set `APP_TEMP_ROOT` to `/mnt/disk1`:
+>
+> ```bash
+> APP_TEMP_ROOT=/mnt/disk1
+> ```
+>
+> And you intend to save your job output to `/mnt/disk1/saved_model`, **your `saved_model` directory and all its contents will be DELETED** because it resides within the `APP_TEMP_ROOT` path.
+>
+> ### Recommended Safe Usage:
+>
+> To avoid accidental data loss, use a dedicated temporary subdirectory for `APP_TEMP_ROOT` and a separate directory for your persistent data.
+>
+> 1.  **Create a dedicated temporary directory:**
+>     For example, use `/mnt/disk1/temp_job_data` for `APP_TEMP_ROOT`.
+>     ```bash
+>     APP_TEMP_ROOT=/mnt/disk1/temp_job_data
+>     ```
+> 2.  **Use a separate directory for persistent storage:**
+>     For example, use `/mnt/disk1/saved_models` to save your job outputs.
+>
+> ### Docker Volume Mounting:
+>
+> If you are using Docker, ensure you mount the parent directory (or relevant individual directories) to make both locations accessible within the container. For instance, to make the entire `/mnt/disk1` accessible:
+>
+> ```bash
+> docker run -v /mnt/disk1:/mnt/disk1 ... your_image_name ...
+> ```
+>
+> This way, the container can access `/mnt/disk1/temp_job_data` (for `APP_TEMP_ROOT`) and `/mnt/disk1/saved_models` (for your outputs) correctly.
+>
+> **ALWAYS DOUBLE-CHECK YOUR `APP_TEMP_ROOT` PATH TO PREVENT UNINTENTIONAL DATA DELETION.**
+
+---
+
 ### Explanation of Parameters:
 
 * --gpus all: Essential for GPU acceleration. Passes all available NVIDIA GPUs to the container. Requires NVIDIA Container Toolkit.
