@@ -25,6 +25,10 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ## Changelog
 
+### Version 1.5
+
+* **temporary bug fix**: added startup script to symlink nvidia libraries.
+
 ### Version 1.4
 * **Base Docker Image Overhaul**: Changed base Docker image to use a custom precompiled `llama.cpp` and `exl2` for optimized performance and feature set.
 * **Added EXL2 Quantization**: Introduced the option to quantize models to the EXL2 format using Exllamav2.

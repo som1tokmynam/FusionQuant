@@ -52,9 +52,15 @@ ENV RUN_LOCALLY=1
 # Expose the Gradio port
 EXPOSE 7860
 
-# Set the entrypoint to run your main application script
-# This assumes combined_app.py is now in the WORKDIR (/home/builder/app)
-ENTRYPOINT ["python3", "combined_app.py"]
+# 1. Copy startup script and the wrapper entrypoint script.
+COPY --chown=builder:builder startup.sh /usr/local/bin/startup.sh
+COPY --chown=builder:builder entrypoint_wrapper.sh /usr/local/bin/entrypoint_wrapper.sh
 
-# Default command (can be empty if ENTRYPOINT is self-contained)
+# 2. Make both scripts executable
+RUN chmod +x /usr/local/bin/startup.sh /usr/local/bin/entrypoint_wrapper.sh
+
+# 3. Set the new entrypoint to be the wrapper script
+ENTRYPOINT ["/usr/local/bin/entrypoint_wrapper.sh"]
+
+# Default command
 CMD []
