@@ -204,7 +204,52 @@ docker run \
 
 * som1tokmynam/fusionquant:latest: The Docker image and tag to run.
 
-## Once running, open your web browser and navigate to http://localhost:7860.
+### Once running, open your web browser and navigate to http://localhost:7860.
+
+---
+
+### Docker compose
+
+```bash
+version: '3.8'
+services:
+  my-app-service: # Rename to your service's name
+    container_name: FusionQuant # specify a container name
+    image: som1tokmynam/fusionquant:latest
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all # NVIDIA GPU support (Mandatory)
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_VISIBLE_DEVICES=0 # if specific GPU indexing is needed, or All
+      - USE_CUDA_DOCKER=true
+      - HF_TOKEN=YOUR_HUGGINGFACE_TOKEN_HERE # Example: API token
+      - APP_TEMP_ROOT=/app_temp # Example: In-container temp path
+      - TZ=America/Toronto # optional: e.g., Your/Timezone 
+    deploy:
+      resources:
+        limits:
+          cpus: '10.0' # Adjust CPU limit
+          memory: 150G # Adjust Memory limit
+        reservations: # For GPU reservation with NVIDIA runtime (Mandatory)
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: all # Or specify a number, e.g., 1, if you don't want to assign all GPUs
+    ports:
+      - "7860:7860" # YOUR_HOST_PORT:CONTAINER_PORT e.g., "7870:7860"
+    volumes:
+      # Mount host paths or named volumes to container paths
+      - /path/on/host/data:/data/in/container # Example: Model weights directory
+      # - /another/host/path:/app/logs # Example: Temp job directory
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Allows container to reach the host
+    networks:
+      - my-app-network # Connect to the custom network defined below
+    restart: unless-stopped # Or 'always', 'on-failure', 'no'
+
+networks:
+  my-app-network: # Define a custom network for your services
+    driver: bridge
+```
 
 ---
 
