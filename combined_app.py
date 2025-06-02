@@ -240,7 +240,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_local_output_path = gr.Textbox(label="Local Save Path", placeholder=f"e.g., {TEMP_DIR_ROOT}/gguf_exports (quant specific name auto-added)")
 
             gr.Markdown("### Quantization Settings")
-            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q2_K_L", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q5_K_L", "Q6_K", "Q8_0", "BF16"], label="Standard Quants", value=["Q5_K_M"], elem_classes="checkbox-group")
+            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q2_K_L", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q5_K_L", "Q6_K", "Q8_0", "FP16"], label="Standard Quants", value=["Q5_K_M"], elem_classes="checkbox-group")
             gguf_use_imatrix = gr.Checkbox(label="Use Importance Matrix", value=False)
             gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ2_XXS", "IQ2_XS", "IQ2_S", "IQ2_M","IQ3_XXS", "IQ3_XS", "IQ3_XXS", "IQ3_M", "Q4_K_M", "Q4_K_S", "IQ4_NL", "IQ4_XS", "Q5_K_M", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_XS"], visible=False, elem_classes="checkbox-group")
             gguf_use_bundled_imatrix_checkbox = gr.Checkbox(label=f"Use bundled groups_merged.txt for Imatrix (Path: {BUNDLED_IMATRIX_PATH})", value=False, visible=False, info=f"If checked and 'Use Importance Matrix' is active, {BUNDLED_IMATRIX_PATH} will be used." )

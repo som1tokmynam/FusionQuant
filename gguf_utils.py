@@ -197,9 +197,8 @@ def process_gguf_conversion(
         # --- MODIFICATION: Ensure temp_dir_base_for_job exists ---
         Path(temp_dir_base_for_job).mkdir(parents=True, exist_ok=True)
         log_fn(f"Ensured temporary job base directory exists: {temp_dir_base_for_job}", "DEBUG")
-        # --- END MODIFICATION ---
 
-        # 1. Determine source model directory and base name
+        # Determine source model directory and base name
         if model_source_type == "HF Hub":
             if not hf_model_id:
                 raise GGUFConversionError("Hugging Face Model ID is required for HF Hub source.")
@@ -230,16 +229,18 @@ def process_gguf_conversion(
 
         Path(output_dir_gguf).mkdir(parents=True, exist_ok=True)
 
-        with tempfile.TemporaryDirectory(prefix="gguf_f16conv_", dir=temp_dir_base_for_job) as f16_conversion_workdir_str:
-            f16_conversion_workdir = Path(f16_conversion_workdir_str)
-            initial_gguf_filename = f"{model_name_base}.F16.gguf" 
-            initial_gguf_path = f16_conversion_workdir / initial_gguf_filename
+        with tempfile.TemporaryDirectory(prefix="gguf_BF16conv_", dir=temp_dir_base_for_job) as BF16_conversion_workdir_str:
+            Bf16_conversion_workdir = Path(Bf16_conversion_workdir_str)
+            initial_gguf_filename = f"{model_name_base}.BF16.gguf" 
+            initial_gguf_path = Bf16_conversion_workdir / initial_gguf_filename
+            
             
             convert_cmd = [
                 "python3", str(CONVERSION_SCRIPT), str(source_model_dir_for_conversion),
                 "--outfile", str(initial_gguf_path),
+                "--outtype", "bf16"
             ]
-            log_fn(f"Converting model to initial GGUF (F16)... Output: {initial_gguf_path}", "INFO")
+            log_fn(f"Converting model to initial GGUF (BF16)... Output: {initial_gguf_path}", "INFO")
             _run_gguf_command_with_logging(convert_cmd, log_fn, operation_name="HF to Initial GGUF Conversion")
             if not initial_gguf_path.exists():
                 raise GGUFConversionError(f"Initial GGUF conversion failed: {initial_gguf_path} not found.")
@@ -252,7 +253,7 @@ def process_gguf_conversion(
                     log_fn("Importance matrix requested, but llama-imatrix executable not found. Skipping imatrix.", "WARNING")
                 else:
                     imatrix_output_filename = f"{model_name_base}.imatrix.dat"
-                    imatrix_data_path_obj = f16_conversion_workdir / imatrix_output_filename 
+                    imatrix_data_path_obj = Bf16_conversion_workdir / imatrix_output_filename 
                     if generate_importance_matrix(str(initial_gguf_path), train_data_path_gguf, str(imatrix_data_path_obj), log_fn):
                         imatrix_data_path_str = str(imatrix_data_path_obj)
                     else:
@@ -264,11 +265,11 @@ def process_gguf_conversion(
                 all_quant_methods.extend(q for q in imatrix_quant_methods_list if q not in all_quant_methods)
             
             if not all_quant_methods:
-                log_fn("No quantization methods selected. Copying initial F16 GGUF to output.", "INFO")
+                log_fn("No quantization methods selected. Copying initial BF16 GGUF to output.", "INFO")
                 if initial_gguf_path.exists():
                     final_f16_path = Path(output_dir_gguf) / initial_gguf_filename
                     shutil.copy2(initial_gguf_path, final_f16_path)
-                    msg = f"✅ Initial GGUF (F16) created. | Local: `{str(final_f16_path.resolve())}`"
+                    msg = f"✅ Initial GGUF (BF16) created. | Local: `{str(final_f16_path.resolve())}`"
                     result_container['final_status_messages_list'].append(msg)
 
             for method in all_quant_methods:
