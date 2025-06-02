@@ -229,7 +229,7 @@ def process_gguf_conversion(
 
         Path(output_dir_gguf).mkdir(parents=True, exist_ok=True)
 
-        with tempfile.TemporaryDirectory(prefix="gguf_BF16conv_", dir=temp_dir_base_for_job) as BF16_conversion_workdir_str:
+        with tempfile.TemporaryDirectory(prefix="gguf_BF16conv_", dir=temp_dir_base_for_job) as Bf16_conversion_workdir_str:
             Bf16_conversion_workdir = Path(Bf16_conversion_workdir_str)
             initial_gguf_filename = f"{model_name_base}.BF16.gguf" 
             initial_gguf_path = Bf16_conversion_workdir / initial_gguf_filename
