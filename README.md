@@ -25,6 +25,10 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ## Changelog
 
+### Version 1.6
+
+* **Bug fix**: Fixed multiple issues with Imatrix Quants and sharding.
+
 ### Version 1.5
 
 * **temporary bug fix**: added startup script to symlink nvidia libraries.

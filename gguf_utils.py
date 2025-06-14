@@ -161,40 +161,40 @@ def generate_importance_matrix(
         return False
 
 # --- Main Processing Function for GGUF Conversion ---
+# In gguf_utils.py
+
 def process_gguf_conversion(
     # Required arguments (no default values)
     model_source_type: str,
     log_fn: Callable[[str, str], None],
     result_container: Dict[str, Any],
-    output_dir_gguf: str, 
-    temp_dir_base_for_job: str, 
-    download_dir_for_job: str, 
+    output_dir_gguf: str,
+    temp_dir_base_for_job: str,
+    download_dir_for_job: str,
     # Optional arguments (with default values)
     hf_token: Optional[str] = None,
     hf_model_id: Optional[str] = None,
     local_model_path: Optional[str] = None,
     custom_model_name_gguf: Optional[str] = None,
-    quant_methods_list: List[str] = ["Q4_K_M"], 
+    quant_methods_list: List[str] = ["Q4_K_M"],
     use_imatrix_bool: bool = False,
     imatrix_quant_methods_list: Optional[List[str]] = None,
     upload_to_hf_bool: bool = False,
     hf_repo_private_bool: bool = False,
-    train_data_path_gguf: Optional[str] = None, 
-    user_specified_gguf_save_path: bool = True, 
-    split_model_bool: bool = False, 
+    train_data_path_gguf: Optional[str] = None,
+    user_specified_gguf_save_path: bool = True,
+    split_model_bool: bool = False,
     split_max_tensors_val: int = 256,
     split_max_size_val: Optional[str] = None
 ):
     result_container['final_status_messages_list'] = []
     result_container['error_message'] = None
-    
+
     source_model_dir_for_conversion: Path
-    model_name_base: str 
+    model_name_base: str
 
     try:
         log_fn("=== Starting GGUF Conversion Process ===", "INFO")
-
-        # --- MODIFICATION: Ensure temp_dir_base_for_job exists ---
         Path(temp_dir_base_for_job).mkdir(parents=True, exist_ok=True)
         log_fn(f"Ensured temporary job base directory exists: {temp_dir_base_for_job}", "DEBUG")
 
@@ -231,10 +231,9 @@ def process_gguf_conversion(
 
         with tempfile.TemporaryDirectory(prefix="gguf_BF16conv_", dir=temp_dir_base_for_job) as Bf16_conversion_workdir_str:
             Bf16_conversion_workdir = Path(Bf16_conversion_workdir_str)
-            initial_gguf_filename = f"{model_name_base}.BF16.gguf" 
+            initial_gguf_filename = f"{model_name_base}.BF16.gguf"
             initial_gguf_path = Bf16_conversion_workdir / initial_gguf_filename
-            
-            
+
             convert_cmd = [
                 "python3", str(CONVERSION_SCRIPT), str(source_model_dir_for_conversion),
                 "--outfile", str(initial_gguf_path),
@@ -253,17 +252,20 @@ def process_gguf_conversion(
                     log_fn("Importance matrix requested, but llama-imatrix executable not found. Skipping imatrix.", "WARNING")
                 else:
                     imatrix_output_filename = f"{model_name_base}.imatrix.dat"
-                    imatrix_data_path_obj = Bf16_conversion_workdir / imatrix_output_filename 
+                    imatrix_data_path_obj = Bf16_conversion_workdir / imatrix_output_filename
                     if generate_importance_matrix(str(initial_gguf_path), train_data_path_gguf, str(imatrix_data_path_obj), log_fn):
                         imatrix_data_path_str = str(imatrix_data_path_obj)
                     else:
                         log_fn("Importance matrix generation failed. Proceeding without it.", "WARNING")
             
-            all_quant_methods = list(quant_methods_list) 
-            if use_imatrix_bool and imatrix_data_path_str and imatrix_quant_methods_list:
-                log_fn(f"Adding imatrix-specific quantization methods: {imatrix_quant_methods_list}", "INFO")
-                all_quant_methods.extend(q for q in imatrix_quant_methods_list if q not in all_quant_methods)
-            
+            # [FIX #1] Correctly choose the quantization method list
+            if use_imatrix_bool:
+                log_fn(f"IMatrix mode enabled. Using quantization methods: {imatrix_quant_methods_list}", "INFO")
+                all_quant_methods = list(imatrix_quant_methods_list) if imatrix_quant_methods_list else []
+            else:
+                log_fn(f"Standard quantization enabled. Using methods: {quant_methods_list}", "INFO")
+                all_quant_methods = list(quant_methods_list) if quant_methods_list else []
+
             if not all_quant_methods:
                 log_fn("No quantization methods selected. Copying initial BF16 GGUF to output.", "INFO")
                 if initial_gguf_path.exists():
@@ -276,15 +278,16 @@ def process_gguf_conversion(
                 log_fn(f"--- Processing GGUF quantization method: {method} ---", "INFO")
                 quant_output_filename = f"{model_name_base}-{method}.gguf"
                 quant_output_path_final = Path(output_dir_gguf) / quant_output_filename
-                
+
                 quant_cmd = [LLAMA_QUANTIZE_PATH]
+                # Use importance matrix if it was generated successfully and this is an imatrix-specific quant method
                 is_imatrix_method = use_imatrix_bool and imatrix_data_path_str and imatrix_quant_methods_list and method in imatrix_quant_methods_list
                 if is_imatrix_method:
                     log_fn(f"Using importance matrix for {method}: {imatrix_data_path_str}", "INFO")
                     quant_cmd.extend(["--imatrix", imatrix_data_path_str])
-                
+
                 quant_cmd.extend([str(initial_gguf_path), str(quant_output_path_final), method])
-                
+
                 log_fn(f"Running quantization for {method}... Output: {quant_output_path_final}", "INFO")
                 _run_gguf_command_with_logging(quant_cmd, log_fn, operation_name=f"GGUF Quantization ({method})")
 
@@ -292,6 +295,31 @@ def process_gguf_conversion(
                     raise GGUFConversionError(f"Quantization for method {method} failed: output file '{quant_output_path_final}' not found.")
 
                 current_quant_status_msg = f"✅ **{method}:** Quantization successful."
+                
+                # [FIX #2] Add sharding logic
+                is_sharded = False
+                if split_model_bool:
+                    if not LLAMA_GGUF_SPLIT_PATH:
+                        log_fn("Sharding requested, but 'llama-gguf-split' executable not found. Skipping.", "WARNING")
+                        current_quant_status_msg += " | Sharding Skipped (executable not found)"
+                    else:
+                        log_fn(f"Attempting to shard {quant_output_filename}...", "INFO")
+                        split_cmd = [LLAMA_GGUF_SPLIT_PATH]
+                        if split_max_size_val and split_max_size_val.strip():
+                            split_cmd.extend(["--split-max-size", split_max_size_val])
+                        if split_max_tensors_val is not None:
+                             split_cmd.extend(["--split-max-tensors", str(split_max_tensors_val)])
+                        split_cmd.append(str(quant_output_path_final))
+                        
+                        try:
+                            _run_gguf_command_with_logging(split_cmd, log_fn, operation_name=f"GGUF Sharding ({method})")
+                            is_sharded = True
+                            log_fn(f"Sharding successful for {method} quant.", "INFO")
+                            current_quant_status_msg += " | Sharding Successful"
+                        except GGUFConversionError as e_split:
+                            log_fn(f"Sharding failed for {method} quant: {e_split}", "ERROR")
+                            current_quant_status_msg += f" | Sharding Failed: {e_split}"
+
                 local_quant_file_kept_and_exists = True
 
                 if upload_to_hf_bool:
@@ -299,97 +327,80 @@ def process_gguf_conversion(
                         log_fn(f"Cannot upload {method} GGUF: Hugging Face token not provided.", "ERROR")
                         current_quant_status_msg += " | HF Upload Failed (token missing)"
                     else:
-                        hf_username = None
-                        try:
-                            user_info = whoami(token=hf_token)
-                            hf_username = user_info.get('name')
-                        except Exception as e_whoami_hf:
-                            log_fn(f"Could not determine HF username: {e_whoami_hf}. Upload may fail.", "WARNING")
-
+                        hf_username = whoami(token=hf_token).get('name')
                         base_repo_name_for_gguf = custom_model_name_gguf or model_name_base
-                        gguf_repo_id : Optional[str] = None
-                        if '/' not in base_repo_name_for_gguf:
-                            if not hf_username:
-                                err_gguf_repo_msg = "HF username not found and repo base name is not fully qualified for GGUF upload."
-                                log_fn(err_gguf_repo_msg, "ERROR")
-                                current_quant_status_msg += f" | HF Upload Failed (repo ID error)"
-                                current_err_val = result_container.get('error_message')
-                                if current_err_val is None: current_err_val = ""
-                                if err_gguf_repo_msg not in current_err_val:
-                                    result_container['error_message'] = (current_err_val + "\n" + err_gguf_repo_msg).strip()
-                            else:
-                                gguf_repo_id = f"{hf_username}/{base_repo_name_for_gguf}-GGUF"
-                        else: 
-                            gguf_repo_id = f"{base_repo_name_for_gguf}-GGUF"
+                        gguf_repo_id = f"{hf_username}/{base_repo_name_for_gguf}-GGUF" if '/' not in base_repo_name_for_gguf else f"{base_repo_name_for_gguf}-GGUF"
                         
-                        if gguf_repo_id:
-                            try:
-                                log_fn(f"Preparing to upload {quant_output_filename} to {gguf_repo_id}", "INFO")
-                                api = HfApi(token=hf_token)
-                                repo_url_obj = api.create_repo(
-                                    repo_id=gguf_repo_id, private=hf_repo_private_bool,
-                                    exist_ok=True, repo_type="model" )
-                                repo_url = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
+                        try:
+                            log_fn(f"Ensuring repo exists and preparing to upload to {gguf_repo_id}", "INFO")
+                            api = HfApi(token=hf_token)
+                            repo_url_obj = api.create_repo(repo_id=gguf_repo_id, private=hf_repo_private_bool, exist_ok=True, repo_type="model")
+                            repo_url = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
 
+                            # [FIX #2] Handle upload for single file or multiple shards
+                            upload_path_display = ""
+                            if is_sharded:
+                                log_fn(f"Uploading sharded GGUF for {method} to {gguf_repo_id}", "INFO")
+                                shard_pattern = f"{quant_output_path_final.stem}-*.gguf"
+                                shard_paths = list(Path(output_dir_gguf).glob(shard_pattern))
+                                if not shard_paths:
+                                    raise GGUFConversionError(f"Sharding reported success, but no shards found with pattern '{shard_pattern}' in '{output_dir_gguf}'")
+                                
+                                for shard_path in shard_paths:
+                                    api.upload_file(
+                                        path_or_fileobj=str(shard_path),
+                                        path_in_repo=shard_path.name,
+                                        repo_id=gguf_repo_id,
+                                        commit_message=f"Add {method} GGUF quant shard: {shard_path.name}")
+                                upload_path_display = f"{len(shard_paths)} shards"
+                                log_fn(f"Successfully uploaded {len(shard_paths)} shards to {repo_url}", "INFO")
+                            else:
                                 api.upload_file(
                                     path_or_fileobj=str(quant_output_path_final),
                                     path_in_repo=quant_output_filename,
                                     repo_id=gguf_repo_id,
-                                    commit_message=f"Add {method} GGUF quant: {quant_output_filename}" )
-                                
-                                card_metadata = ( "---\n"
-                                                  "license: mit\n"
-                                                  "tags:\n"
-                                                  "  - gguf\n"
-                                                  f"  - {method.lower().replace('_', '-')}\n" 
-                                                  "library_name: llama.cpp\n"
-                                                  "---\n" )
-                                card_model_name_title = gguf_repo_id.split('/')[-1]
-                                card_body_content = ( f"# {card_model_name_title}\n\n"
-                                    f"GGUF model files for `{model_name_base}` (original base: `{model_name_base or hf_model_id or local_model_path}`).\n\n"
-                                    f"This repository contains the following quantization: **{method}**.\n\n"
-                                    f"## Files\n- `{quant_output_filename}`\n\n"
-                                    f"Converted and quantized using [llama.cpp](https://github.com/ggerganov/llama.cpp).")
-                                full_card_content = card_metadata + card_body_content
-                                ModelCard(full_card_content).push_to_hub(gguf_repo_id, token=hf_token)
-                                log_fn(f"Successfully uploaded {quant_output_filename} and ModelCard to {repo_url}", "INFO")
-                                current_quant_status_msg += f" | HF: <a href='{repo_url}/blob/main/{quant_output_filename}' target='_blank'>{gguf_repo_id}/{quant_output_filename}</a>"
+                                    commit_message=f"Add {method} GGUF quant: {quant_output_filename}")
+                                upload_path_display = quant_output_filename
+                                log_fn(f"Successfully uploaded {quant_output_filename} to {repo_url}", "INFO")
 
-                                if not user_specified_gguf_save_path:
-                                    log_fn(f"HF upload successful for {quant_output_filename} and no specific local path provided. Deleting default local copy.", "INFO")
-                                    try:
-                                        quant_output_path_final.unlink(missing_ok=True)
-                                        log_fn(f"Successfully deleted default local copy: {quant_output_path_final}", "INFO")
-                                        local_quant_file_kept_and_exists = False
-                                    except Exception as e_del_gguf:
-                                        log_fn(f"Warning: Failed to delete default local copy {quant_output_path_final}: {e_del_gguf}", "WARNING")
-                            except Exception as e_upload_gguf:
-                                err_upload_msg = f"Failed to upload {quant_output_filename} to {gguf_repo_id}: {e_upload_gguf}"
-                                log_fn(err_upload_msg, "ERROR")
-                                current_quant_status_msg += f" | HF Upload Error: {str(e_upload_gguf)[:100]}..."
-                                current_err_val = result_container.get('error_message')
-                                if current_err_val is None: current_err_val = ""
-                                if err_upload_msg not in current_err_val:
-                                    result_container['error_message'] = (current_err_val + "\n" + err_upload_msg).strip()
+                            card_model_name_title = gguf_repo_id.split('/')[-1]
+                            card_body_content = f"# {card_model_name_title}\n\nGGUF model files for `{model_name_base}`."
+                            ModelCard.from_template(card_data={'library_name': 'llama.cpp'}, license='mit', tags=['gguf', f'{method.lower().replace("_", "-")}']).from_string(card_body_content).push_to_hub(gguf_repo_id, token=hf_token)
+                            current_quant_status_msg += f" | HF: <a href='{repo_url}' target='_blank'>{gguf_repo_id} ({upload_path_display})</a>"
+
+                            if not user_specified_gguf_save_path:
+                                if is_sharded:
+                                    paths_to_delete = list(Path(output_dir_gguf).glob(f"{quant_output_path_final.stem}-*.gguf"))
+                                    for p in paths_to_delete: p.unlink(missing_ok=True)
+                                else:
+                                    quant_output_path_final.unlink(missing_ok=True)
+                                log_fn(f"Deleted local file(s) for {method} from default path after HF upload.", "INFO")
+                                local_quant_file_kept_and_exists = False
+
+                        except Exception as e_upload_gguf:
+                            err_upload_msg = f"Failed to upload to {gguf_repo_id}: {e_upload_gguf}"
+                            log_fn(err_upload_msg, "ERROR")
+                            current_quant_status_msg += f" | HF Upload Error: {str(e_upload_gguf)[:100]}..."
+                            result_container['error_message'] = (result_container.get('error_message', '') + f"\n{err_upload_msg}").strip()
                 
+                # [FIX #2] Correctly report local path for single or sharded files
                 if local_quant_file_kept_and_exists:
-                    current_quant_status_msg += f" | Local: `{str(quant_output_path_final.resolve())}`"
+                    if is_sharded:
+                        current_quant_status_msg += f" | Local (sharded): `{str(Path(output_dir_gguf).resolve())}`"
+                    else:
+                        current_quant_status_msg += f" | Local: `{str(quant_output_path_final.resolve())}`"
                 elif not user_specified_gguf_save_path:
                     current_quant_status_msg += " | Local copy (default path) deleted after successful HF upload."
                 
                 result_container['final_status_messages_list'].append(current_quant_status_msg)
-        
+
         log_fn("Initial GGUF conversion temporary workdir auto-cleaned.", "INFO")
 
     except GGUFConversionError as e_gguf:
         log_fn(f"GGUF Conversion Error: {e_gguf}", "ERROR")
         result_container['error_message'] = str(e_gguf)
-        if not result_container.get('final_status_messages_list'): 
-             result_container['final_status_messages_list'] = [f"❌ **Overall GGUF Error:** {str(e_gguf)}"]
     except Exception as e_main:
         import traceback
         tb_str = traceback.format_exc()
         log_fn(f"Unexpected error in GGUF processing: {e_main}\nTraceback:\n{tb_str}", "CRITICAL_ERROR")
         result_container['error_message'] = f"Unexpected critical error in GGUF processing: {str(e_main)}"
-        if not result_container.get('final_status_messages_list'):
-            result_container['final_status_messages_list'] = [f"❌ **Critical Unexpected GGUF Error:** {str(e_main)}"]
