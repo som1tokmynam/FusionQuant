@@ -3,10 +3,10 @@ import subprocess
 import shutil
 import tempfile
 import threading
-from huggingface_hub import HfApi, ModelCard, whoami, snapshot_download
+from huggingface_hub import HfApi, ModelCard, ModelCardData, whoami, snapshot_download
 from pathlib import Path
 from textwrap import dedent
-from typing import List, Tuple, Optional, Callable, Dict, Union, Any # Ensured Any is imported
+from typing import List, Tuple, Optional, Callable, Dict, Union, Any
 
 # --- Path Definitions ---
 APP_SCRIPT_WORKDIR = Path(os.environ.get("APP_DIR", "/home/builder/app"))
@@ -365,7 +365,14 @@ def process_gguf_conversion(
 
                             card_model_name_title = gguf_repo_id.split('/')[-1]
                             card_body_content = f"# {card_model_name_title}\n\nGGUF model files for `{model_name_base}`."
-                            ModelCard.from_template(card_data={'library_name': 'llama.cpp'}, license='mit', tags=['gguf', f'{method.lower().replace("_", "-")}']).from_string(card_body_content).push_to_hub(gguf_repo_id, token=hf_token)
+                            
+                            # Fix: Use ModelCardData for card_data
+                            card_data_obj = ModelCardData(
+                                library_name='llama.cpp',
+                                license='mit',
+                                tags=['gguf', f'{method.lower().replace("_", "-")}']
+                            )
+                            ModelCard.from_template(card_data=card_data_obj).from_string(card_body_content).push_to_hub(gguf_repo_id, token=hf_token)
                             current_quant_status_msg += f" | HF: <a href='{repo_url}' target='_blank'>{gguf_repo_id} ({upload_path_display})</a>"
 
                             if not user_specified_gguf_save_path:
@@ -381,7 +388,13 @@ def process_gguf_conversion(
                             err_upload_msg = f"Failed to upload to {gguf_repo_id}: {e_upload_gguf}"
                             log_fn(err_upload_msg, "ERROR")
                             current_quant_status_msg += f" | HF Upload Error: {str(e_upload_gguf)[:100]}..."
-                            result_container['error_message'] = (result_container.get('error_message', '') + f"\n{err_upload_msg}").strip()
+                            
+                            # Fix: Handle NoneType for error_message concatenation
+                            current_error_message = result_container.get('error_message')
+                            if current_error_message is None:
+                                result_container['error_message'] = err_upload_msg
+                            else:
+                                result_container['error_message'] = (str(current_error_message) + f"\n{err_upload_msg}").strip()
                 
                 # [FIX #2] Correctly report local path for single or sharded files
                 if local_quant_file_kept_and_exists:
