@@ -332,7 +332,6 @@ def process_model_merge(
     persistent_hf_cache_path: Optional[str] = None
 ) -> Tuple[Optional[Iterable[str]], Optional[str], Optional[str]]:
     log_fn("=== Starting process_model_merge ===", "INFO")
-    final_local_path_str: Optional[str] = None
     error_message_str: Optional[str] = None
     uploaded_files_list: Optional[Iterable[str]] = None
 
@@ -385,15 +384,40 @@ def process_model_merge(
                 hf_home_for_operation = str(temp_hf_home_path)
                 log_fn(f"Using temporary Hugging Face cache for merge (will be deleted with op temp dir): {hf_home_for_operation}", "INFO")
 
-            merge_process_workdir = operational_temp_dir / "merge_process_work"
+            # --- MODIFICATION START ---
+            # Determine the working directory and CLI output path based on whether a local save path is provided.
+            merge_process_workdir: Path
+            output_path_for_cli: str
+            final_local_path_str: Optional[str]
+            is_permanent_local_save = bool(local_path_merge_output and local_path_merge_output.strip())
+
+            if is_permanent_local_save:
+                # Use the user's specified path as the work directory. This avoids a final copy.
+                merge_process_workdir = Path(local_path_merge_output)
+                # Ensure the directory is clean before merging into it.
+                if merge_process_workdir.exists():
+                    log_fn(f"Target local path {merge_process_workdir} exists, removing before merge.", "WARNING")
+                    shutil.rmtree(merge_process_workdir)
+                # The CLI will output to its current working directory.
+                output_path_for_cli = "."
+                final_local_path_str = str(merge_process_workdir)
+            else:
+                # No local path specified, so work inside a temporary subdirectory.
+                merge_process_workdir = operational_temp_dir / "merge_process_work"
+                # The CLI will output to a named subdirectory within the temp work dir.
+                output_path_for_cli = "merged_model_output"
+                # The final path will point to this temporary location.
+                final_local_path_str = str(merge_process_workdir / output_path_for_cli)
+
             merge_process_workdir.mkdir(parents=True, exist_ok=True)
             config_yaml_path = merge_process_workdir / "config.yaml"
             config_yaml_path.write_text(yaml_config_str)
             log_fn(f"Configuration saved to: {config_yaml_path}", "INFO")
 
-            merge_output_subdir_name = "merged_model_output"
-            mergekit_internal_output_dir = merge_process_workdir / merge_output_subdir_name
-            base_mergekit_command_str = f"mergekit-yaml {config_yaml_path.name} {merge_output_subdir_name} --copy-tokenizer"
+            # Use the dynamically determined output path for the mergekit command.
+            base_mergekit_command_str = f"mergekit-yaml {config_yaml_path.name} {output_path_for_cli} --copy-tokenizer"
+            # --- MODIFICATION END ---
+
             if "--allow-crimes" not in base_mergekit_command_str: base_mergekit_command_str += " --allow-crimes"
 
             log_fn("Starting model prefetch...", "INFO")
@@ -414,7 +438,7 @@ def process_model_merge(
             try:
                 _run_merge_operation(
                     current_has_gpu, base_mergekit_command_str, str(merge_process_workdir),
-                    merge_output_subdir_name,
+                    output_path_for_cli, # Use dynamic output path name for logging
                     str(operational_temp_dir),
                     hf_home_for_this_op=hf_home_for_operation,
                     log_fn=log_fn,
@@ -428,28 +452,18 @@ def process_model_merge(
                 log_fn(f"Unexpected failure during merge operation: {str(e_merge_unexpected)}", "ERROR")
                 return None, None, f"Unexpected merge failure: {str(e_merge_unexpected)}"
 
-            if not mergekit_internal_output_dir.exists() or not mergekit_internal_output_dir.is_dir():
-                msg = f"Mergekit output directory not found after merge: {mergekit_internal_output_dir}"
+            # The output directory is now the final local path itself.
+            output_dir_after_merge = Path(final_local_path_str)
+            if not output_dir_after_merge.exists() or not output_dir_after_merge.is_dir():
+                msg = f"Mergekit output directory not found after merge: {output_dir_after_merge}"
                 log_fn(msg, "ERROR"); return None, None, msg
-            log_fn(f"Mergekit output found at: {mergekit_internal_output_dir}", "INFO")
+            log_fn(f"Mergekit output found at: {output_dir_after_merge}", "INFO")
 
-            if local_path_merge_output:
-                target_local_dir = Path(local_path_merge_output) # Path is defined
-                log_fn(f"Copying merged model from {mergekit_internal_output_dir} to final local path: {target_local_dir}", "INFO")
-                try:
-                    target_local_dir.parent.mkdir(parents=True, exist_ok=True)
-                    if target_local_dir.exists():
-                        log_fn(f"Target local path {target_local_dir} exists, removing before copy.", "WARNING")
-                        shutil.rmtree(target_local_dir)
-                    shutil.copytree(mergekit_internal_output_dir, target_local_dir, dirs_exist_ok=False)
-                    log_fn(f"Model successfully copied to: {target_local_dir}", "INFO")
-                    final_local_path_str = str(target_local_dir)
-                except Exception as e_copy_local:
-                    log_fn(f"Error copying to local path {target_local_dir}: {e_copy_local}", "ERROR")
-                    return None, None, f"Error copying to local path: {str(e_copy_local)}"
-            else:
-                log_fn("No final local save path specified by user. Merged model remains in temp location if used for passthrough.", "INFO")
-                final_local_path_str = str(mergekit_internal_output_dir)
+            # --- MODIFICATION START ---
+            # The copy operation is no longer needed as we merged directly into the final directory.
+            # The 'final_local_path_str' is already set correctly above.
+            log_fn(f"Merged model is at its final destination: {final_local_path_str}", "INFO")
+            # --- MODIFICATION END ---
 
             upload_to_hf = bool(repo_name)
             actual_repo_name_used_for_upload = repo_name
@@ -482,10 +496,10 @@ def process_model_merge(
                         repo_url_str = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
                         log_fn(f"HF repo ready for upload: {repo_url_str}", "INFO")
 
-                        log_fn(f"Uploading model from {mergekit_internal_output_dir} to {actual_repo_name_used_for_upload}...", "INFO")
+                        log_fn(f"Uploading model from {output_dir_after_merge} to {actual_repo_name_used_for_upload}...", "INFO")
                         hf_api_for_upload.upload_folder(
                             repo_id=actual_repo_name_used_for_upload, # type: ignore
-                            folder_path=str(mergekit_internal_output_dir),
+                            folder_path=str(output_dir_after_merge),
                             commit_message=f"Add merged model via mergekit: {Path(config_yaml_path).name}" # Path is defined
                         )
                         log_fn(f"Successfully uploaded to HF repo: {repo_url_str}", "INFO")
