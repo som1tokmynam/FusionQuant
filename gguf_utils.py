@@ -77,7 +77,7 @@ def _run_gguf_command_with_logging(
     log_fn: Callable[[str, str], None],
     cwd: Optional[Union[str, Path]] = None,
     env: Optional[Dict[str, str]] = None,
-    timeout: int = 7200, 
+    timeout: Optional[int] = 7200,
     operation_name: str = "GGUF operation"
 ):
     log_fn(f"Running {operation_name}: {' '.join(cmd_list)}", "INFO")
@@ -108,13 +108,14 @@ def _run_gguf_command_with_logging(
 
     try:
         process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        log_fn(f"{operation_name} timed out after {timeout} seconds. Terminating...", "ERROR")
-        process.terminate()
-        try: process.wait(timeout=30)
-        except subprocess.TimeoutExpired: process.kill(); process.wait()
-        thread.join(timeout=10)
-        raise GGUFConversionError(f"{operation_name} timed out: {' '.join(cmd_list)}")
+    except subprocess.TimeoutExpired: # This will only be raised if timeout is not None
+        if timeout is not None: # Double check, though logically TimeoutExpired implies timeout was set
+            log_fn(f"{operation_name} timed out after {timeout} seconds. Terminating...", "ERROR")
+            process.terminate()
+            try: process.wait(timeout=30) # Give it a chance to terminate gracefully
+            except subprocess.TimeoutExpired: process.kill(); process.wait() # Force kill if necessary
+            thread.join(timeout=10) # Wait for logging thread
+            raise GGUFConversionError(f"{operation_name} timed out: {' '.join(cmd_list)}")
 
     thread.join(timeout=30)
     if process.returncode != 0:
@@ -146,7 +147,12 @@ def generate_importance_matrix(
         "-t", str(threads) 
     ]
     try:
-        _run_gguf_command_with_logging(imatrix_cmd, log_fn, operation_name="Importance Matrix Generation")
+        _run_gguf_command_with_logging(
+            imatrix_cmd, 
+            log_fn, 
+            operation_name="Importance Matrix Generation",
+            timeout=None # Allow imatrix generation to run indefinitely
+        )
         if Path(output_imatrix_path).exists():
             log_fn(f"Importance matrix generated successfully: {output_imatrix_path}", "INFO")
             return True
@@ -259,12 +265,22 @@ def process_gguf_conversion(
                         log_fn("Importance matrix generation failed. Proceeding without it.", "WARNING")
             
             # [FIX #1] Correctly choose the quantization method list
-            if use_imatrix_bool:
-                log_fn(f"IMatrix mode enabled. Using quantization methods: {imatrix_quant_methods_list}", "INFO")
-                all_quant_methods = list(imatrix_quant_methods_list) if imatrix_quant_methods_list else []
+            if use_imatrix_bool: # This logic should consider if imatrix was *successfully generated*
+                log_fn(f"IMatrix mode potentially enabled. Using quantization methods: {imatrix_quant_methods_list}", "INFO")
+                # Only use imatrix_quant_methods if imatrix_data_path_str is valid, otherwise fall back or use none specific to imatrix
+                if imatrix_data_path_str and imatrix_quant_methods_list:
+                     all_quant_methods = list(imatrix_quant_methods_list)
+                else: # Fallback if imatrix failed or no specific methods for it, or use standard ones
+                    all_quant_methods = list(quant_methods_list) if quant_methods_list else []
+                    if imatrix_data_path_str: # imatrix generated but no specific list for it
+                        log_fn("IMatrix generated, but no specific imatrix_quant_methods_list provided. Will use standard quant_methods_list if imatrix is applicable by those methods.", "INFO")
+                    else: # imatrix not generated or failed
+                        log_fn("IMatrix not used or generation failed. Using standard quantization methods.", "INFO")
+
             else:
                 log_fn(f"Standard quantization enabled. Using methods: {quant_methods_list}", "INFO")
                 all_quant_methods = list(quant_methods_list) if quant_methods_list else []
+
 
             if not all_quant_methods:
                 log_fn("No quantization methods selected. Copying initial BF16 GGUF to output.", "INFO")
@@ -280,11 +296,23 @@ def process_gguf_conversion(
                 quant_output_path_final = Path(output_dir_gguf) / quant_output_filename
 
                 quant_cmd = [LLAMA_QUANTIZE_PATH]
-                # Use importance matrix if it was generated successfully and this is an imatrix-specific quant method
-                is_imatrix_method = use_imatrix_bool and imatrix_data_path_str and imatrix_quant_methods_list and method in imatrix_quant_methods_list
-                if is_imatrix_method:
-                    log_fn(f"Using importance matrix for {method}: {imatrix_data_path_str}", "INFO")
-                    quant_cmd.extend(["--imatrix", imatrix_data_path_str])
+                # Use importance matrix if it was generated successfully AND ( (use_imatrix_bool is true and method is in imatrix_quant_methods_list) OR if imatrix is generally preferred for this method type implicitly )
+                # Simplified: if imatrix exists and use_imatrix_bool is true (implying intent to use it where applicable)
+                if imatrix_data_path_str and use_imatrix_bool: # Check if imatrix is available and user wants to use it
+                    # Check if the current method is *specifically* designated for imatrix use.
+                    # If imatrix_quant_methods_list is None or empty, assume all methods in all_quant_methods (if derived from imatrix intent) can use it.
+                    is_method_for_imatrix = True # Default to true if use_imatrix_bool is true and imatrix exists
+                    if imatrix_quant_methods_list: # If a specific list for imatrix methods is given
+                        is_method_for_imatrix = method in imatrix_quant_methods_list
+                    
+                    if is_method_for_imatrix:
+                        log_fn(f"Using importance matrix for {method}: {imatrix_data_path_str}", "INFO")
+                        quant_cmd.extend(["--imatrix", imatrix_data_path_str])
+                    else:
+                        log_fn(f"IMatrix available, but method {method} not designated for imatrix use or not in imatrix_quant_methods_list. Quantizing without imatrix.", "INFO")
+                elif imatrix_data_path_str and not use_imatrix_bool:
+                    log_fn(f"IMatrix was generated but use_imatrix_bool is False. Quantizing {method} without imatrix.", "INFO")
+
 
                 quant_cmd.extend([str(initial_gguf_path), str(quant_output_path_final), method])
 
@@ -341,20 +369,40 @@ def process_gguf_conversion(
                             upload_path_display = ""
                             if is_sharded:
                                 log_fn(f"Uploading sharded GGUF for {method} to {gguf_repo_id}", "INFO")
-                                shard_pattern = f"{quant_output_path_final.stem}-*.gguf"
-                                shard_paths = list(Path(output_dir_gguf).glob(shard_pattern))
-                                if not shard_paths:
-                                    raise GGUFConversionError(f"Sharding reported success, but no shards found with pattern '{shard_pattern}' in '{output_dir_gguf}'")
+                                shard_pattern = f"{quant_output_path_final.stem}-*.gguf" # Original file is now a prefix
+                                # The original file quant_output_path_final might be deleted or renamed by llama-gguf-split
+                                # It's safer to glob for all files starting with the prefix.
+                                # Example: model-Q4_K_M.gguf becomes model-Q4_K_M-00001-of-00002.gguf, model-Q4_K_M-00002-of-00002.gguf
+                                # The original model-Q4_K_M.gguf is usually deleted by the split tool.
                                 
-                                for shard_path in shard_paths:
+                                # We need to find the shards. The original quant_output_path_final is the input to split.
+                                # The shards will be in output_dir_gguf.
+                                shard_files_to_upload = list(Path(output_dir_gguf).glob(f"{Path(quant_output_filename).stem}-*.gguf"))
+
+                                if not shard_files_to_upload:
+                                     # If the original file still exists and no shards, it means splitting might have decided not to split
+                                     # (e.g. if already small enough) or failed silently in a way not caught by GGUFConversionError.
+                                     # However, llama-gguf-split usually renames/deletes the input.
+                                     # Let's assume if is_sharded is true, shards MUST exist.
+                                    raise GGUFConversionError(f"Sharding reported success for {method}, but no shard files found with pattern '{Path(quant_output_filename).stem}-*.gguf' in '{output_dir_gguf}'")
+
+                                for shard_path in shard_files_to_upload:
                                     api.upload_file(
                                         path_or_fileobj=str(shard_path),
                                         path_in_repo=shard_path.name,
                                         repo_id=gguf_repo_id,
                                         commit_message=f"Add {method} GGUF quant shard: {shard_path.name}")
-                                upload_path_display = f"{len(shard_paths)} shards"
-                                log_fn(f"Successfully uploaded {len(shard_paths)} shards to {repo_url}", "INFO")
-                            else:
+                                upload_path_display = f"{len(shard_files_to_upload)} shards"
+                                log_fn(f"Successfully uploaded {len(shard_files_to_upload)} shards to {repo_url}", "INFO")
+                                # If sharded, the original quant_output_path_final is no longer the main file.
+                                # We might need to delete it if it wasn't already handled by llama-gguf-split
+                                if quant_output_path_final.exists() and any(sf != quant_output_path_final for sf in shard_files_to_upload):
+                                    log_fn(f"Original pre-split file {quant_output_path_final} still exists after sharding. Deleting it.", "DEBUG")
+                                    quant_output_path_final.unlink(missing_ok=True)
+
+                            else: # Not sharded, upload the single file
+                                if not quant_output_path_final.exists():
+                                     raise GGUFConversionError(f"Quantized file {quant_output_path_final} expected but not found before upload.")
                                 api.upload_file(
                                     path_or_fileobj=str(quant_output_path_final),
                                     path_in_repo=quant_output_filename,
@@ -366,10 +414,9 @@ def process_gguf_conversion(
                             card_model_name_title = gguf_repo_id.split('/')[-1]
                             card_body_content = f"# {card_model_name_title}\n\nGGUF model files for `{model_name_base}`."
                             
-                            # Fix: Use ModelCardData for card_data
                             card_data_obj = ModelCardData(
                                 library_name='llama.cpp',
-                                license='mit',
+                                license='mit', # Or determine dynamically/pass as arg
                                 tags=['gguf', f'{method.lower().replace("_", "-")}']
                             )
                             ModelCard.from_template(card_data=card_data_obj).from_string(card_body_content).push_to_hub(gguf_repo_id, token=hf_token)
@@ -377,32 +424,43 @@ def process_gguf_conversion(
 
                             if not user_specified_gguf_save_path:
                                 if is_sharded:
-                                    paths_to_delete = list(Path(output_dir_gguf).glob(f"{quant_output_path_final.stem}-*.gguf"))
-                                    for p in paths_to_delete: p.unlink(missing_ok=True)
+                                    # shard_files_to_upload contains the paths of the shards already.
+                                    for p in shard_files_to_upload: 
+                                        if p.exists(): p.unlink(missing_ok=True)
+                                    log_fn(f"Deleted local shard files for {method} from default path after HF upload.", "INFO")
                                 else:
-                                    quant_output_path_final.unlink(missing_ok=True)
-                                log_fn(f"Deleted local file(s) for {method} from default path after HF upload.", "INFO")
+                                    if quant_output_path_final.exists(): # Original file
+                                        quant_output_path_final.unlink(missing_ok=True)
+                                        log_fn(f"Deleted local file {quant_output_path_final} for {method} from default path after HF upload.", "INFO")
                                 local_quant_file_kept_and_exists = False
+
 
                         except Exception as e_upload_gguf:
                             err_upload_msg = f"Failed to upload to {gguf_repo_id}: {e_upload_gguf}"
                             log_fn(err_upload_msg, "ERROR")
                             current_quant_status_msg += f" | HF Upload Error: {str(e_upload_gguf)[:100]}..."
                             
-                            # Fix: Handle NoneType for error_message concatenation
                             current_error_message = result_container.get('error_message')
                             if current_error_message is None:
                                 result_container['error_message'] = err_upload_msg
                             else:
                                 result_container['error_message'] = (str(current_error_message) + f"\n{err_upload_msg}").strip()
                 
-                # [FIX #2] Correctly report local path for single or sharded files
                 if local_quant_file_kept_and_exists:
                     if is_sharded:
-                        current_quant_status_msg += f" | Local (sharded): `{str(Path(output_dir_gguf).resolve())}`"
+                        # Ensure we message based on actual existing files post-potential-deletion-logic
+                        existing_shards = [s for s in Path(output_dir_gguf).glob(f"{Path(quant_output_filename).stem}-*.gguf") if s.exists()]
+                        if existing_shards:
+                             current_quant_status_msg += f" | Local (sharded): `{str(Path(output_dir_gguf).resolve())}` ({len(existing_shards)} shards)"
+                        else:
+                             current_quant_status_msg += f" | Local (sharded): All shards appear to have been removed or were not found."
                     else:
-                        current_quant_status_msg += f" | Local: `{str(quant_output_path_final.resolve())}`"
-                elif not user_specified_gguf_save_path:
+                        if quant_output_path_final.exists():
+                            current_quant_status_msg += f" | Local: `{str(quant_output_path_final.resolve())}`"
+                        else:
+                            current_quant_status_msg += f" | Local: File {quant_output_path_final.name} appears to have been removed or was not found."
+
+                elif not user_specified_gguf_save_path: # implies files were deleted after HF upload
                     current_quant_status_msg += " | Local copy (default path) deleted after successful HF upload."
                 
                 result_container['final_status_messages_list'].append(current_quant_status_msg)
