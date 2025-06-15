@@ -56,7 +56,7 @@ else:
     print(f"INFO: APP_TEMP_ROOT environment variable not set. Using default temporary root: {TEMP_DIR_ROOT}")
 
 TEMP_DIR_ROOT.mkdir(parents=True, exist_ok=True)
-BUNDLED_IMATRIX_PATH = "/home/user/app/groups_merged.txt"
+BUNDLED_IMATRIX_PATH = "/home/builder/app/groups_merged.txt"
 
 # --- Helper Functions ---
 def get_hf_token_status(token, token_name):
@@ -240,9 +240,9 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_local_output_path = gr.Textbox(label="Local Save Path", placeholder=f"e.g., {TEMP_DIR_ROOT}/gguf_exports (quant specific name auto-added)")
 
             gr.Markdown("### Quantization Settings")
-            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q2_K_S", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0", "BF16"], label="Standard Quants", value=["Q5_K_M"], elem_classes="checkbox-group")
+            gguf_q_methods = gr.CheckboxGroup(["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0", "BF16"], label="Standard Quants", value=["Q5_K_M"], elem_classes="checkbox-group")
             gguf_use_imatrix = gr.Checkbox(label="Use Importance Matrix", value=False)
-            gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ1_M ", "IQ2_XXS", "IQ2_XS", "IQ2_S", "IQ2_M", "IQ3_XXS", "IQ3_XS", "IQ3_S", "IQ3_M", "IQ4_XS", "IQ4_NL", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_NL"], visible=False, elem_classes="checkbox-group")
+            gguf_imatrix_q_methods = gr.CheckboxGroup(["IQ1_M ", "IQ2_XXS", "IQ2_XS", "IQ2_S", "IQ2_M", "Q2_K_S", "IQ3_XXS", "IQ3_XS", "IQ3_S", "IQ3_M", "IQ4_XS", "IQ4_NL", "Q5_K_S"], label="Imatrix Quants", value=["IQ4_NL"], visible=False, elem_classes="checkbox-group")
             gguf_use_bundled_imatrix_checkbox = gr.Checkbox(label=f"Use bundled groups_merged.txt for Imatrix (Path: {BUNDLED_IMATRIX_PATH})", value=False, visible=False, info=f"If checked and 'Use Importance Matrix' is active, {BUNDLED_IMATRIX_PATH} will be used." )
             
             gr.Markdown("### Sharding Settings")
