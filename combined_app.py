@@ -164,7 +164,6 @@ def initial_load_updates(
         gguf_q_methods: gr.update(visible=not imatrix_val),
         gguf_imatrix_q_methods: gr.update(visible=imatrix_val),
         gguf_use_bundled_imatrix_checkbox: gr.update(visible=imatrix_val),
-        gguf_split_max_tensors: gr.update(visible=split_val),
         gguf_split_max_size: gr.update(visible=split_val),
 
         # EXL2 Tab Upload Visibility
@@ -247,7 +246,6 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             
             gr.Markdown("### Sharding Settings")
             gguf_split_model = gr.Checkbox(label="Split GGUF Model Shards")
-            gguf_split_max_tensors = gr.Number(label="Max Tensors/Shard", value=256, visible=False)
             gguf_split_max_size = gr.Textbox(label="Max Size/Shard (e.g., 5G)", visible=False)
             
             # MODIFIED ORDER: Button, Status, Logs
@@ -448,7 +446,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
         local_gguf_output_path_val,
         quantization_methods_selected, use_importance_matrix, imatrix_quant_methods_selected,
         use_bundled_imatrix_checkbox_value,
-        should_split_model, split_max_tensors_val, split_max_size_val
+        should_split_model, split_max_size_val
     ):
         if not gguf_utils:
             error_msg = "GGUF utils (gguf_utils.py) not loaded."
@@ -546,7 +544,6 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
                     output_dir_gguf=str(effective_local_out_path),
                     user_specified_gguf_save_path=user_did_specify_gguf_save_path,
                     split_model_bool=should_split_model,
-                    split_max_tensors_val=int(split_max_tensors_val) if split_max_tensors_val is not None else 256,
                     split_max_size_val=split_max_size_val,
                     temp_dir_base_for_job=str(TEMP_DIR_ROOT / "gguf_temps"),
                     download_dir_for_job=str(TEMP_DIR_ROOT / "gguf_downloads")
@@ -819,14 +816,14 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_local_output_path,
             gguf_q_methods, gguf_use_imatrix, gguf_imatrix_q_methods,
             gguf_use_bundled_imatrix_checkbox,
-            gguf_split_model, gguf_split_max_tensors, gguf_split_max_size
+            gguf_split_model, gguf_split_max_size
         ],
         outputs=[gguf_logs_output, gguf_final_status_display] # Outputs remain the same, their visual order is changed
     )
     gguf_use_imatrix.change(lambda use_imatrix_checked: (gr.update(visible=not use_imatrix_checked), gr.update(visible=use_imatrix_checked), gr.update(visible=use_imatrix_checked)),
         inputs=gguf_use_imatrix, outputs=[gguf_q_methods, gguf_imatrix_q_methods, gguf_use_bundled_imatrix_checkbox])
-    gguf_split_model.change(lambda split_checked: (gr.update(visible=split_checked), gr.update(visible=split_checked)),
-        inputs=gguf_split_model, outputs=[gguf_split_max_tensors, gguf_split_max_size])
+    gguf_split_model.change(lambda split_checked: gr.update(visible=split_checked),
+        inputs=gguf_split_model, outputs=[gguf_split_max_size])
 
     # EXL2 Tab Event Handlers
     exl2_upload_to_hf.change(
@@ -887,7 +884,7 @@ with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
             gguf_hf_group, gguf_local_model_path_input, gguf_merged_model_display,
             gguf_custom_name_input, gguf_private_repo, gguf_hf_token_input,
             gguf_q_methods, gguf_imatrix_q_methods, gguf_use_bundled_imatrix_checkbox,
-            gguf_split_max_tensors, gguf_split_max_size,
+            gguf_split_max_size,
             # EXL2
             exl2_hf_group, exl2_local_model_path_input, exl2_merged_model_display,
             exl2_custom_repo_name_base, exl2_private_repo, exl2_hf_token_input,
