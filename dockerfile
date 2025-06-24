@@ -1,6 +1,6 @@
 # Step 1: Use your pre-compiled custom base image
 # Replace 'my-precompiled-app-base:v1' with the actual name and tag you used
-FROM som1tokmynam/precompiled-base:1.0
+FROM som1tokmynam/precompiled-base:latest
 
 # Inherited from base:
 # - User 'builder' (UID 1000)
