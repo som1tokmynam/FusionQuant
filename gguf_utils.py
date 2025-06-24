@@ -282,6 +282,7 @@ def process_gguf_conversion(
                     result_container['final_status_messages_list'].append(msg)
 
             for method in all_quant_methods:
+                method = method.strip() # Robustness fix: remove leading/trailing whitespace
                 log_fn(f"--- Processing GGUF quantization method: {method} ---", "INFO")
                 quant_output_filename = f"{model_name_base}-{method}.gguf"
                 quant_output_path_final = Path(output_dir_gguf) / quant_output_filename
@@ -290,7 +291,7 @@ def process_gguf_conversion(
                 if imatrix_data_path_str and use_imatrix_bool:
                     is_method_for_imatrix = True
                     if imatrix_quant_methods_list:
-                        is_method_for_imatrix = method in imatrix_quant_methods_list
+                        is_method_for_imatrix = method in [m.strip() for m in imatrix_quant_methods_list]
                     
                     if is_method_for_imatrix:
                         log_fn(f"Using importance matrix for {method}: {imatrix_data_path_str}", "INFO")
@@ -384,7 +385,7 @@ def process_gguf_conversion(
                                 log_fn(f"Successfully uploaded {quant_output_filename} to {repo_url}", "INFO")
                             
                             card_model_name_title = gguf_repo_id.split('/')[-1]
-                            all_methods_str = ", ".join(f"`{m}`" for m in all_quant_methods)
+                            all_methods_str = ", ".join(f"`{m.strip()}`" for m in all_quant_methods)
                             
                             source_model_identifier = "Unknown"
                             if model_source_type == "HF Hub" and hf_model_id:
