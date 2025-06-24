@@ -1,63 +1,60 @@
 #!/bin/bash
+echo "--- Robust startup.sh v2.1 (Corrected) ---"
 
-# Define the library directory (this might need to be more flexible)
-LIB_DIR="/usr/lib/x86_64-linux-gnu"
-# Or, attempt to find it, e.g., by looking where nvidia-smi is, then navigating,
-# or checking common paths. This example assumes a known directory.
+# Define a list of directories to search for NVIDIA drivers
+# We include the standard system path and the common NVIDIA container paths.
+SEARCH_DIRS=(
+    "/usr/local/nvidia/lib64"
+    "/usr/local/nvidia/lib"
+    "/usr/lib/x86_64-linux-gnu"
+    "/usr/lib64"
+)
 
-if [ ! -d "$LIB_DIR" ]; then
-  echo "Error: Library directory $LIB_DIR not found."
-  exit 1
-fi
+# --- Function to find the latest driver file and create a symlink ---
+# Arguments: $1 = library name (e.g., libcuda.so), $2 = symlink name (e.g., libcuda.so.1)
+create_driver_symlink() {
+    local lib_pattern="$1"
+    local symlink_name="$2"
+    local target_file=""
+    local found_dir=""
 
-cd "$LIB_DIR" || exit
+    echo "Searching for target for ${symlink_name}..."
 
-echo "Current directory: $(pwd)"
+    # Loop through our search directories
+    for dir in "${SEARCH_DIRS[@]}"; do
+        if [ -d "$dir" ]; then
+            # Find the newest version of the library file in the current directory
+            candidate=$(find "${dir}" -maxdepth 1 -name "${lib_pattern}.[0-9]*" -type f | sort -V | tail -n 1)
+            if [ -n "$candidate" ]; then
+                target_file=$candidate
+                found_dir=$dir
+                echo "Found candidate: ${target_file}"
+                break # Stop searching once we find a match
+            fi
+        fi
+    done
 
-# --- Handle libcuda.so.1 ---
-# Find candidate libcuda.so.X.Y.Z files (actual files, not symlinks)
-# The pattern [0-9] helps ensure we match version numbers.
-cuda_targets=$(find . -maxdepth 1 -name 'libcuda.so.[0-9]*' -type f -print0 | xargs -0 ls -1 2>/dev/null)
+    # If we found a file, create the symlink in a standard location
+    if [ -n "$target_file" ]; then
+        # The symlink MUST be created in a directory that is in the LD_LIBRARY_PATH
+        # We will use /usr/local/nvidia/lib64 as it's guaranteed to be there.
+        SYMLINK_DIR="/usr/local/nvidia/lib64"
+        
+        # Ensure the target directory for the symlink exists
+        mkdir -p "${SYMLINK_DIR}"
 
-if [ -n "$cuda_targets" ]; then
-  # Select the "latest" version using version sort
-  latest_cuda_target=$(echo "$cuda_targets" | sort -V | tail -n 1)
+        echo "Creating symlink: ln -sfn \"${target_file}\" \"${SYMLINK_DIR}/${symlink_name}\""
+        ln -sfn "${target_file}" "${SYMLINK_DIR}/${symlink_name}"
+        echo "Verifying link:"
+        ls -l "${SYMLINK_DIR}/${symlink_name}"
+    else
+        echo "ERROR: Could not find any file matching '${lib_pattern}.[0-9]*' in search paths."
+    fi
+    echo "----------------------------"
+}
 
-  if [ -n "$latest_cuda_target" ] && [ -f "$latest_cuda_target" ]; then
-    echo "Found target for libcuda.so.1: $latest_cuda_target"
-    echo "Creating symlink: ln -sfn \"$latest_cuda_target\" libcuda.so.1"
-    ln -sfn "$latest_cuda_target" libcuda.so.1
-    echo "Verifying link:"
-    ls -l libcuda.so.1
-  else
-    echo "Warning: No suitable concrete libcuda.so.X.Y.Z file found in $LIB_DIR."
-  fi
-else
-  echo "Warning: No libcuda.so.X.Y.Z files found in $LIB_DIR."
-fi
+# Create symlinks for the essential libraries
+create_driver_symlink "libcuda.so" "libcuda.so.1"
+create_driver_symlink "libnvidia-ml.so" "libnvidia-ml.so.1"
 
-echo # Spacer
-
-# --- Handle libnvidia-ml.so.1 ---
-# Find candidate libnvidia-ml.so.X.Y.Z files
-nvml_targets=$(find . -maxdepth 1 -name 'libnvidia-ml.so.[0-9]*' -type f -print0 | xargs -0 ls -1 2>/dev/null)
-
-if [ -n "$nvml_targets" ]; then
-  latest_nvml_target=$(echo "$nvml_targets" | sort -V | tail -n 1)
-
-  if [ -n "$latest_nvml_target" ] && [ -f "$latest_nvml_target" ]; then
-    echo "Found target for libnvidia-ml.so.1: $latest_nvml_target"
-    echo "Creating symlink: ln -sfn \"$latest_nvml_target\" libnvidia-ml.so.1"
-    ln -sfn "$latest_nvml_target" libnvidia-ml.so.1
-    echo "Verifying link:"
-    ls -l libnvidia-ml.so.1
-  else
-    echo "Warning: No suitable concrete libnvidia-ml.so.X.Y.Z file found in $LIB_DIR."
-  fi
-else
-  echo "Warning: No libnvidia-ml.so.X.Y.Z files found in $LIB_DIR."
-fi
-
-echo
 echo "Script finished."
-echo "Modifying system library links can have unintended consequences. Proceed with caution."

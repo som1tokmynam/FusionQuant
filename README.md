@@ -27,6 +27,12 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ### Version 1.7
 
+* **Bug fix**: Fixed issue with Imatrix Uploading.
+* **Change**: Changed base image version, to precompile exl2 instead of using JIT compilation.
+* **Security**: No longer reliant on running using Root, now correctly use Builder user.
+
+### Version 1.7
+
 * **Bug fix**: Fixed issue with sharded uploading.
 
 ### Version 1.6
@@ -127,7 +133,6 @@ docker run \
     --gpus all \
     --cpu="<number_of_cpu_cores>" \
     --memory="<amount_of_memory>" \
-    --user=root \
     --name fusionquant \
     -v /YOUR_LOCAL_PATH_FOR_OUTPUTS:/home/user/app/outputs \
     -e APP_TEMP_ROOT="/home/user/app/outputs" \
@@ -193,8 +198,6 @@ docker run \
 * --cpu="<number_of_cpu_cores>": Important for stability. Specify the number of CPU cores the container can use (e.g., --cpu="8").
 
 * --memory="<amount_of_memory>": Important for stability. Specify the maximum amount of memory the container can use (e.g., --memory="16g" for 16GB RAM). Prevents OOM kills.
-
-* --user=root: (Temporary, see "To Implement/Fix") Runs processes inside the container as root.
 
 * --name fusionquant: Assigns a name to your Docker container for easier management.
 
@@ -263,7 +266,7 @@ networks:
 
 ### To Implement / Fix
 
-* Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.
+* ~~Security: Transition away from running Docker container processes as root. Implement a non-root user with appropriate permissions within the Dockerfile.~~
 
 * Gradio Share: Add --share option to combined_app.py for easy public sharing of the Gradio interface when needed.
 
