@@ -328,8 +328,10 @@ def process_gguf_conversion(
                             log_fn(f"Sharding successful for {method} quant.", "INFO")
                             current_quant_status_msg += " | Sharding Successful"
                         except GGUFConversionError as e_split:
-                            log_fn(f"Sharding failed for {method} quant: {e_split}", "ERROR")
+                            log_fn(f"Sharding failed for {method} quant: {e_split}. Upload for this method will be skipped.", "ERROR")
                             current_quant_status_msg += f" | Sharding Failed: {e_split}"
+                            result_container['final_status_messages_list'].append(current_quant_status_msg)
+                            continue # Skip to the next quantization method
 
                 local_quant_file_kept_and_exists = True
 
@@ -365,7 +367,8 @@ def process_gguf_conversion(
                                 upload_path_display = f"{len(shard_files_to_upload)} shards"
                                 log_fn(f"Successfully uploaded {len(shard_files_to_upload)} shards to {repo_url}", "INFO")
                                 
-                                if quant_output_path_final.exists() and any(sf != quant_output_path_final for sf in shard_files_to_upload):
+                                # After successful shard upload, delete the original pre-split file if it still exists.
+                                if quant_output_path_final.exists():
                                     log_fn(f"Original pre-split file {quant_output_path_final} still exists after sharding. Deleting it.", "DEBUG")
                                     quant_output_path_final.unlink(missing_ok=True)
 
@@ -380,9 +383,7 @@ def process_gguf_conversion(
                                 upload_path_display = quant_output_filename
                                 log_fn(f"Successfully uploaded {quant_output_filename} to {repo_url}", "INFO")
                             
-                            # --- CORRECTED MODEL CARD SECTION ---
                             card_model_name_title = gguf_repo_id.split('/')[-1]
-                            
                             all_methods_str = ", ".join(f"`{m}`" for m in all_quant_methods)
                             
                             source_model_identifier = "Unknown"
@@ -413,13 +414,14 @@ def process_gguf_conversion(
                             """)
 
                             ModelCard(card_body_content).push_to_hub(gguf_repo_id, token=hf_token)
-                            # --- END OF CORRECTION ---
 
                             current_quant_status_msg += f" | HF: <a href='{repo_url}' target='_blank'>{gguf_repo_id} ({upload_path_display})</a>"
 
                             if not user_specified_gguf_save_path:
                                 if is_sharded:
-                                    for p in shard_files_to_upload: 
+                                    # We need to find the shards again to delete them
+                                    shards_to_delete = list(Path(output_dir_gguf).glob(f"{Path(quant_output_filename).stem}-*.gguf"))
+                                    for p in shards_to_delete: 
                                         if p.exists(): p.unlink(missing_ok=True)
                                     log_fn(f"Deleted local shard files for {method} from default path after HF upload.", "INFO")
                                 else:

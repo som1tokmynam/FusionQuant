@@ -6,26 +6,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Step 2: Install essential build tools, Python, pip, git, cmake, etc.
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends --fix-missing \
-    build-essential \
-    ca-certificates \
-    cmake \
-    curl \
-    dos2unix \
-    ffmpeg \
-    file \
-    git \
-    git-lfs \
-    gnupg \
-    libcurl4-openssl-dev \
-    ninja-build \
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3.10-dev \
-    sed \
-    software-properties-common \
-    sudo \
-    wget && \
+    build-essential ca-certificates cmake curl dos2unix ffmpeg file git \
+    git-lfs gnupg libcurl4-openssl-dev ninja-build python3 python3-pip \
+    python3-venv python3.10-dev sed software-properties-common sudo wget && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set up a non-root user
@@ -50,38 +33,41 @@ ENV PYTHONPATH="${PYTHONUSERBASE}/lib/python3.10/site-packages:${PYTHONPATH}"
 
 # Clone repositories
 RUN git clone https://github.com/ggerganov/llama.cpp.git ${LLAMA_CPP_DIR} && \
-    sudo chown -R ${APP_USER}:${APP_USER} ${LLAMA_CPP_DIR}
-RUN git clone https://github.com/turboderp-org/exllamav2.git ${EXLLAMAV2_REPO_DIR} && \
-    sudo chown -R ${APP_USER}:${APP_USER} ${EXLLAMAV2_REPO_DIR}
+    git clone https://github.com/turboderp-org/exllamav2.git ${EXLLAMAV2_REPO_DIR}
 
-# --- MODIFICATION START: Patch exllamav2/conversion/measure.py ---
+# Patch exllamav2 (This is fine)
 USER root
 RUN sed -i "s/import os/import os\nimport shutil/" "${EXLLAMAV2_REPO_DIR}/exllamav2/conversion/measure.py" && \
-    sed -i "s/os.replace(temp_filename, states_filename)/shutil.move(temp_filename, states_filename)/" "${EXLLAMAV2_REPO_DIR}/exllamav2/conversion/measure.py" && \
-    echo "Patched measure.py to use shutil.move instead of os.replace"
+    sed -i "s/os.replace(temp_filename, states_filename)/shutil.move(temp_filename, states_filename)/" "${EXLLAMAV2_REPO_DIR}/exllamav2/conversion/measure.py"
 USER ${APP_USER}
-# --- MODIFICATION END ---
 
 # Install Python dependencies from requirements.txt
 COPY --chown=${APP_USER}:${APP_USER} requirements.txt .
 ENV TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 9.0"
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy the one-time compilation script
-USER root
-COPY start-compile-all.sh /usr/local/bin/start-compile-all.sh
-RUN dos2unix /usr/local/bin/start-compile-all.sh && \
-    chmod +x /usr/local/bin/start-compile-all.sh
-USER ${APP_USER}
+# --- COMPILE LIBRARIES DURING BUILD ---
+# This is the correct way.
+RUN cd ${LLAMA_CPP_DIR} && make
+RUN cd ${EXLLAMAV2_REPO_DIR} && pip install --no-cache-dir --user .
 
 # Environment Variables
 ENV CUDA_HOME=/usr/local/cuda
 ENV PYTHONUNBUFFERED=1
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
+# --- REMOVE ALL RUNTIME SCRIPT LOGIC ---
+# The base image does not need an entrypoint that performs compilation.
+# Its only job is to BE a pre-compiled base.
+
+# Remove COPY commands for start-compile-all.sh, entrypoint_wrapper.sh, etc.
+# Remove chmod +x for those scripts.
+# Set an inert or no entrypoint at all.
+
+# Clean up apt lists
 USER root
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 USER ${APP_USER}
 
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/start-compile-all.sh"]
-CMD []
+# A base image typically has no CMD or a simple one like /bin/bash
+CMD ["/bin/bash"]

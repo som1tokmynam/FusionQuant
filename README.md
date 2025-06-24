@@ -25,6 +25,10 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ## Changelog
 
+### Version 1.7
+
+* **Bug fix**: Fixed issue with sharded uploading.
+
 ### Version 1.6
 
 * **Bug fix**: Fixed multiple issues with Imatrix Quants and sharding.
