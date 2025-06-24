@@ -25,7 +25,7 @@ FusionQuant empowers you to easily merge language models using Mergekit and then
 
 ## Changelog
 
-### Version 1.7
+### Version 1.8
 
 * **Bug fix**: Fixed issue with Imatrix Uploading.
 * **Change**: Changed base image version, to precompile exl2 instead of using JIT compilation.
