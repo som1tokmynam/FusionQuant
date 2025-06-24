@@ -349,7 +349,7 @@ def process_gguf_conversion(
                             log_fn(f"Ensuring repo exists and preparing to upload to {gguf_repo_id}", "INFO")
                             api = HfApi(token=hf_token)
                             repo_url_obj = api.create_repo(repo_id=gguf_repo_id, private=hf_repo_private_bool, exist_ok=True, repo_type="model")
-                            repo_url = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
+                            repo_url = str(repo_url_obj)
 
                             upload_path_display = ""
                             if is_sharded:

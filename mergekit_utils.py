@@ -1,5 +1,4 @@
 import os
-# import pathlib # Old import
 from pathlib import Path # Corrected import
 import random
 import string
@@ -8,7 +7,7 @@ import time
 import shutil
 import subprocess
 import threading
-import signal # Not strictly used in the provided snippets but often in subprocess management
+import signal
 from typing import Iterable, List, Tuple, Optional, Callable, Any, Union
 
 import huggingface_hub
@@ -384,7 +383,6 @@ def process_model_merge(
                 hf_home_for_operation = str(temp_hf_home_path)
                 log_fn(f"Using temporary Hugging Face cache for merge (will be deleted with op temp dir): {hf_home_for_operation}", "INFO")
 
-            # --- MODIFICATION START ---
             # Determine the working directory and CLI output path based on whether a local save path is provided.
             merge_process_workdir: Path
             output_path_for_cli: str
@@ -416,7 +414,6 @@ def process_model_merge(
 
             # Use the dynamically determined output path for the mergekit command.
             base_mergekit_command_str = f"mergekit-yaml {config_yaml_path.name} {output_path_for_cli} --copy-tokenizer"
-            # --- MODIFICATION END ---
 
             if "--allow-crimes" not in base_mergekit_command_str: base_mergekit_command_str += " --allow-crimes"
 
@@ -459,11 +456,9 @@ def process_model_merge(
                 log_fn(msg, "ERROR"); return None, None, msg
             log_fn(f"Mergekit output found at: {output_dir_after_merge}", "INFO")
 
-            # --- MODIFICATION START ---
             # The copy operation is no longer needed as we merged directly into the final directory.
             # The 'final_local_path_str' is already set correctly above.
             log_fn(f"Merged model is at its final destination: {final_local_path_str}", "INFO")
-            # --- MODIFICATION END ---
 
             upload_to_hf = bool(repo_name)
             actual_repo_name_used_for_upload = repo_name
@@ -493,7 +488,7 @@ def process_model_merge(
                             exist_ok=True,
                             private=hf_repo_private_for_merge
                         )
-                        repo_url_str = repo_url_obj.repo_url if hasattr(repo_url_obj, 'repo_url') else str(repo_url_obj)
+                        repo_url_str = str(repo_url_obj) # Get string representation
                         log_fn(f"HF repo ready for upload: {repo_url_str}", "INFO")
 
                         log_fn(f"Uploading model from {output_dir_after_merge} to {actual_repo_name_used_for_upload}...", "INFO")

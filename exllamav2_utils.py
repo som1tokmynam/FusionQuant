@@ -255,7 +255,8 @@ def process_exllamav2_quantization(
                 repo_id = f"{username_for_hf}/{repo_base}-{quant_suffix}-exl2" if username_for_hf else f"{repo_base}-{quant_suffix}-exl2"
                 
                 try:
-                    repo_url = create_repo(repo_id, token=hf_token_exl2, private=hf_repo_private_exl2, exist_ok=True).repo_url
+                    repo_url_obj = create_repo(repo_id, token=hf_token_exl2, private=hf_repo_private_exl2, exist_ok=True)
+                    repo_url = str(repo_url_obj) # Get string representation for use in logs/links
                     
                     for filename in ["special_tokens_map.json", "tokenizer.json", "tokenizer_config.json"]:
                         if (Path(actual_model_input_path_for_convert_str) / filename).exists():
@@ -290,7 +291,8 @@ def process_exllamav2_quantization(
                     
                 except Exception as e_hf:
                     current_status_msg += f" | HF Upload Error: {str(e_hf)[:100]}..."
-                    result_container['error_message'] = (result_container.get('error_message', '') + f"\nUpload failed for {repo_id}: {e_hf}").strip()
+                    current_error = result_container.get('error_message') or "" # Safely handle None
+                    result_container['error_message'] = (current_error + f"\nUpload failed for {repo_id}: {e_hf}").strip()
             
             result_container['final_status_messages_list'].append(current_status_msg)
             op_temp_dir.cleanup()
